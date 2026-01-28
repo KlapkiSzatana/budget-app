@@ -1,4 +1,4 @@
-## Budget App 💰
+## Budget App 💰 (Budżet Domowy)
 
 Prosta i lekka aplikacja do zarządzania budżetem domowym, napisana w Pythonie (PySide6). Stworzona z myślą o użytkownikach Arch Linuxa.
 
