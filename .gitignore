@@ -1,0 +1,27 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Środowisko Wirtualne (BARDZO WAŻNE) ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Baza Danych (Twoja historia gier) ---
+*.db
+*.sqlite3
+budzet.db
+
+# --- Logi i pliki tymczasowe ---
+*.log
+.pytest_cache/
+
+# --- Ustawienia Edytorów (VS Code, PyCharm) ---
+.vscode/
+.idea/
+
+# --- Systemowe ---
+.DS_Store
+Thumbs.db
