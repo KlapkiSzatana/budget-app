@@ -16,6 +16,9 @@ from config import (WERSJA, PRODUCENT, APP_DIR, setup_crash_handlers, _,
 from database import DatabaseManager
 from charts import BudgetChart
 
+basedir = os.path.dirname(__file__)
+icon_path = os.path.join(basedir, "budget.png")
+
 class BudgetApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1108,6 +1111,12 @@ if __name__ == "__main__":
 
     # Obsługa tłumaczeń własnych (i18n z gettext - to co masz w config.py działa osobno)
     # config.py robi swoje, a powyższy kod załatwia tylko przyciski Qt.
+    # Pobieramy ID ze zmiennej środowiskowej, domyślnie 'tysiac-manager'
+    desktop_id = os.environ.get("APP_ID", "budget-app")
+    app.setDesktopFileName(desktop_id)
+
+    # Ładowanie ikony (musi być plik tysiac.png obok skryptu)
+    app.setWindowIcon(QIcon(icon_path))
 
     w = BudgetApp()
     w.show()
