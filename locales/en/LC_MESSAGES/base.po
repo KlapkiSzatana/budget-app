@@ -1,0 +1,1094 @@
+# Home Budget Application Translation.
+# Copyright (C) 2026 BercikSoft & "Koleczko2005"
+# This file is distributed under the same license as the BudgetApp package.
+# Marcin Janiak <marcin-janiak@int.pl>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: BudgetApp 0.9-15\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-23 09:34+0100\n"
+"PO-Revision-Date: 2026-01-23 09:40+0100\n"
+"Last-Translator: Marcin Janiak\n"
+"Language-Team: English <en@li.org>\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: charts.py:40
+msgid "Struktura"
+msgstr "Structure"
+
+#: charts.py:55 charts.py:160 reports.py:245
+msgid "Oszcz."
+msgstr "Sav."
+
+#: charts.py:58 charts.py:161
+msgid "Długi"
+msgstr "Debts"
+
+#: charts.py:63
+msgid ""
+"Brak\n"
+"transakcji"
+msgstr ""
+"No\n"
+"transactions"
+
+#: charts.py:123 charts.py:160 dialogs.py:345 main.py:751 main.py:856
+#: main.py:857 main.py:891
+msgid "Oszczędności"
+msgstr "Savings"
+
+#: charts.py:125 charts.py:161 main.py:754 main.py:846
+msgid "Spłata Długu"
+msgstr "Debt Repayment"
+
+#: charts.py:136
+#, python-brace-format
+msgid "Na {}: {:.2f} zł"
+msgstr "For {}: {:.2f} PLN"
+
+#: charts.py:143
+msgid "Kategorie (kliknij):"
+msgstr "Categories (click):"
+
+#: charts.py:194
+msgid "Wydatki"
+msgstr "Expenses"
+
+#: charts.py:209
+msgid "PRZYCHODY"
+msgstr "INCOME"
+
+#: charts.py:223
+msgid "Spłata Długów"
+msgstr "Debt Repayment"
+
+#: charts.py:229
+msgid "Oszcz. Gotówka"
+msgstr "Cash Savings"
+
+#: charts.py:234
+msgid "Brak danych"
+msgstr "No data"
+
+#: charts.py:239 reports.py:128 reports.py:146
+msgid "Kwota (PLN)"
+msgstr "Amount (PLN)"
+
+#: config.py:39
+msgid "Budżet Domowy"
+msgstr "Home Budget"
+
+#: config.py:43
+msgid "Styczeń"
+msgstr "January"
+
+#: config.py:43
+msgid "Luty"
+msgstr "February"
+
+#: config.py:43
+msgid "Marzec"
+msgstr "March"
+
+#: config.py:43
+msgid "Kwiecień"
+msgstr "April"
+
+#: config.py:43
+msgid "Maj"
+msgstr "May"
+
+#: config.py:43
+msgid "Czerwiec"
+msgstr "June"
+
+#: config.py:44
+msgid "Lipiec"
+msgstr "July"
+
+#: config.py:44
+msgid "Sierpień"
+msgstr "August"
+
+#: config.py:44
+msgid "Wrzesień"
+msgstr "September"
+
+#: config.py:44
+msgid "Październik"
+msgstr "October"
+
+#: config.py:44
+msgid "Listopad"
+msgstr "November"
+
+#: config.py:44
+msgid "Grudzień"
+msgstr "December"
+
+#: config.py:48
+msgid "Poniedziałek"
+msgstr "Monday"
+
+#: config.py:48
+msgid "Wtorek"
+msgstr "Tuesday"
+
+#: config.py:48
+msgid "Środa"
+msgstr "Wednesday"
+
+#: config.py:48
+msgid "Czwartek"
+msgstr "Thursday"
+
+#: config.py:49
+msgid "Piątek"
+msgstr "Friday"
+
+#: config.py:49
+msgid "Sobota"
+msgstr "Saturday"
+
+#: config.py:49
+msgid "Niedziela"
+msgstr "Sunday"
+
+#: config.py:97
+msgid "Błąd Krytyczny"
+msgstr "Critical Error"
+
+#: config.py:98
+msgid "Wystąpił nieoczekiwany błąd aplikacji."
+msgstr "An unexpected application error occurred."
+
+#: config.py:100
+#, python-brace-format
+msgid ""
+"Log został zapisany w:\n"
+"{}\n"
+"\n"
+"Możesz skopiować błąd poniżej:"
+msgstr ""
+"Log saved in:\n"
+"{}\n"
+"\n"
+"You can copy the error below:"
+
+#: database.py:117
+msgid "Błąd konfiguracji"
+msgstr "Configuration error"
+
+#: database.py:120
+msgid "Brak ścieżki backupu"
+msgstr "No backup path"
+
+#: database.py:124
+msgid "Nie można utworzyć folderu"
+msgstr "Cannot create folder"
+
+#: dialogs.py:12
+msgid "Przetwarzanie..."
+msgstr "Processing..."
+
+#: dialogs.py:17
+msgid "Proszę czekać..."
+msgstr "Please wait..."
+
+#: dialogs.py:28
+msgid "Kopia Zapasowa"
+msgstr "Backup"
+
+#: dialogs.py:32
+msgid "Ustawienia"
+msgstr "Settings"
+
+#: dialogs.py:35
+msgid "Rób automatycznie przy zamknięciu"
+msgstr "Perform automatically on exit"
+
+#: dialogs.py:46
+msgid "Lokalizacja:"
+msgstr "Location:"
+
+#: dialogs.py:51
+msgid "Utwórz Kopię Teraz"
+msgstr "Create Backup Now"
+
+#: dialogs.py:53
+msgid "Przywróć z Kopii"
+msgstr "Restore from Backup"
+
+#: dialogs.py:80
+msgid "Wybierz folder"
+msgstr "Select folder"
+
+#: dialogs.py:90
+msgid "Tworzenie..."
+msgstr "Creating..."
+
+#: dialogs.py:98 dialogs.py:111 main.py:933
+msgid "Sukces"
+msgstr "Success"
+
+#: dialogs.py:98
+#, python-brace-format
+msgid ""
+"Utworzono:\n"
+"{}"
+msgstr ""
+"Created:\n"
+"{}"
+
+#: dialogs.py:100 dialogs.py:114 dialogs.py:480 dialogs.py:481 dialogs.py:483
+#: dialogs.py:484 main.py:845 main.py:859 main.py:868 main.py:869 main.py:882
+#: shopping.py:326
+msgid "Błąd"
+msgstr "Error"
+
+#: dialogs.py:107
+msgid "Wybierz plik"
+msgstr "Select file"
+
+#: dialogs.py:109
+msgid "Potwierdź"
+msgstr "Confirm"
+
+#: dialogs.py:109
+msgid "Przywrócenie nadpisze dane. Kontynuować?"
+msgstr "Restoring will overwrite data. Continue?"
+
+#: dialogs.py:111
+msgid "Przywrócono. Restartuj aplikację."
+msgstr "Restored. Restart the application."
+
+#: dialogs.py:114
+msgid "Nie udało się przywrócić."
+msgstr "Failed to restore."
+
+#: dialogs.py:132
+msgid "Ustawienia Limitu Tygodniowego"
+msgstr "Weekly Limit Settings"
+
+#: dialogs.py:137
+msgid "Włącz system budżetu tygodniowego"
+msgstr "Enable weekly budget system"
+
+#: dialogs.py:148
+#, python-brace-format
+msgid "Edycja dla tygodnia od: <b>{}</b>"
+msgstr "Editing for week starting: <b>{}</b>"
+
+#: dialogs.py:155
+msgid "Kwota (PLN):"
+msgstr "Amount (PLN):"
+
+#: dialogs.py:158
+msgid "Wybierz kategorie wliczane do limitu:"
+msgstr "Select categories included in the limit:"
+
+#: dialogs.py:165
+msgid "Zaznacz wszystkie"
+msgstr "Select all"
+
+#: dialogs.py:167
+msgid "Odznacz wszystkie"
+msgstr "Deselect all"
+
+#: dialogs.py:239
+msgid "Dodaj Przychód"
+msgstr "Add Income"
+
+#: dialogs.py:248 reports.py:243
+msgid "Wpływ"
+msgstr "Income"
+
+#: dialogs.py:253 dialogs.py:288 dialogs.py:369 dialogs.py:575
+msgid "Data:"
+msgstr "Date:"
+
+#: dialogs.py:254
+msgid "Osoba:"
+msgstr "Person:"
+
+#: dialogs.py:255
+msgid "Źródło:"
+msgstr "Source:"
+
+#: dialogs.py:256 dialogs.py:291 dialogs.py:371 dialogs.py:410 dialogs.py:448
+#: dialogs.py:578
+msgid "Kwota:"
+msgstr "Amount:"
+
+#: dialogs.py:272
+msgid "Dodaj Wydatek"
+msgstr "Add Expense"
+
+#: dialogs.py:289 dialogs.py:576
+msgid "Kat:"
+msgstr "Cat:"
+
+#: dialogs.py:290 dialogs.py:577
+msgid "Opis:"
+msgstr "Desc:"
+
+#: dialogs.py:297
+msgid "Nowa"
+msgstr "New"
+
+#: dialogs.py:297 dialogs.py:334
+msgid "Nazwa:"
+msgstr "Name:"
+
+#: dialogs.py:308 shopping.py:91 shopping.py:339
+msgid "Inne"
+msgstr "Others"
+
+#: dialogs.py:308 main.py:821 main.py:1002 shopping.py:43 shopping.py:120
+msgid "Usuń"
+msgstr "Delete"
+
+#: dialogs.py:308
+#, python-brace-format
+msgid "Usunąć '{}'?"
+msgstr "Delete '{}'?"
+
+#: dialogs.py:326
+msgid "Nowy Cel"
+msgstr "New Goal"
+
+#: dialogs.py:335
+msgid "Cel (PLN):"
+msgstr "Goal (PLN):"
+
+#: dialogs.py:348
+msgid "Wpłacam"
+msgstr "Deposit"
+
+#: dialogs.py:349
+msgid "Wypłacam"
+msgstr "Withdraw"
+
+#: dialogs.py:370
+msgid "Cel:"
+msgstr "Goal:"
+
+#: dialogs.py:396 main.py:858
+msgid "Transfer"
+msgstr "Transfer"
+
+#: dialogs.py:408
+msgid "Z:"
+msgstr "From:"
+
+#: dialogs.py:409
+msgid "Do:"
+msgstr "To:"
+
+#: dialogs.py:420
+msgid "Zarządzaj Długami"
+msgstr "Manage Debts"
+
+#: dialogs.py:424
+msgid "Nowe Zobowiązanie"
+msgstr "New Liability"
+
+#: dialogs.py:425
+msgid "Spłata (Oddaję)"
+msgstr "Repayment (Paying back)"
+
+#: dialogs.py:437
+msgid "Komu (Nazwa):"
+msgstr "To whom (Name):"
+
+#: dialogs.py:439
+msgid "Wybierz dług:"
+msgstr "Select debt:"
+
+#: dialogs.py:444 dialogs.py:468
+msgid "Data wpłaty:"
+msgstr "Payment date:"
+
+#: dialogs.py:445 dialogs.py:464
+msgid "Termin zwrotu:"
+msgstr "Due date:"
+
+#: dialogs.py:463
+msgid "Całkowita kwota do oddania"
+msgstr "Total amount to repay"
+
+#: dialogs.py:467
+msgid "Kwota wpłaty"
+msgstr "Payment amount"
+
+#: dialogs.py:480
+msgid "Podaj nazwę!"
+msgstr "Enter name!"
+
+#: dialogs.py:481 dialogs.py:484
+msgid "Podaj kwotę!"
+msgstr "Enter amount!"
+
+#: dialogs.py:483
+msgid "Brak długów!"
+msgstr "No debts!"
+
+#: dialogs.py:497
+msgid "Filtr"
+msgstr "Filter"
+
+#: dialogs.py:500 dialogs.py:513
+msgid "--- Wszystkie ---"
+msgstr "--- All ---"
+
+#: dialogs.py:506
+msgid "Kategoria:"
+msgstr "Category:"
+
+#: dialogs.py:519
+msgid "Raport"
+msgstr "Report"
+
+#: dialogs.py:521 main.py:641
+msgid "Miesiąc"
+msgstr "Month"
+
+#: dialogs.py:522
+msgid "Rok"
+msgstr "Year"
+
+#: dialogs.py:559
+msgid "Edycja"
+msgstr "Edit"
+
+#: main.py:106
+msgid "Okres:"
+msgstr "Period:"
+
+#: main.py:117
+msgid "Backup"
+msgstr "Backup"
+
+#: main.py:122
+msgid "Szukaj: '19zł', 'czynsz', '21.06'..."
+msgstr "Search: '19PLN', 'rent', '21.06'..."
+
+#: main.py:126
+msgid "🛒 Zakupy"
+msgstr "🛒 Shopping"
+
+#: main.py:129
+msgid "🔍 Filtruj"
+msgstr "🔍 Filter"
+
+#: main.py:132
+msgid "📅 Limit Tygodnia"
+msgstr "📅 Weekly Limit"
+
+#: main.py:135
+msgid "📄 PDF"
+msgstr "📄 PDF"
+
+#: main.py:138 main.py:711
+msgid "🔒 Zamknij Miesiąc"
+msgstr "🔒 Close Month"
+
+#: main.py:178
+msgid "Bilans Miesięczny"
+msgstr "Monthly Balance"
+
+#: main.py:187
+msgid "SALDO: 0.00 PLN"
+msgstr "BALANCE: 0.00 PLN"
+
+#: main.py:190
+msgid "z poprzedniego miesiąca: 0.00 PLN"
+msgstr "from previous month: 0.00 PLN"
+
+#: main.py:193
+msgid "Wydatki (ten msc): 0.00 PLN"
+msgstr "Expenses (this month): 0.00 PLN"
+
+#: main.py:196
+msgid "Oszczędności Gotówka (ten msc): 0.00 PLN"
+msgstr "Cash Savings (this month): 0.00 PLN"
+
+#: main.py:199
+msgid "Przychody..."
+msgstr "Income..."
+
+#: main.py:203
+msgid "ŁĄCZNIE (GOTÓWKA): 0.00 PLN"
+msgstr "TOTAL (CASH): 0.00 PLN"
+
+#: main.py:215
+msgid "Wpływy:"
+msgstr "Inflows:"
+
+#: main.py:227
+msgid "Oszczędzamy na:"
+msgstr "Saving for:"
+
+#: main.py:238
+msgid "⇄ Transfer"
+msgstr "⇄ Transfer"
+
+#: main.py:243
+msgid "+ Cel"
+msgstr "+ Goal"
+
+#: main.py:248
+msgid "Postęp:"
+msgstr "Progress:"
+
+#: main.py:254
+msgid "Do oddania:"
+msgstr "Liabilities:"
+
+#: main.py:310
+msgid "Limit: 0.00 zł"
+msgstr "Limit: 0.00 PLN"
+
+#: main.py:318
+msgid "Wydano: 0.00 zł"
+msgstr "Spent: 0.00 PLN"
+
+#: main.py:321
+msgid "Pozostało w tym tygodniu: 0.00 zł"
+msgstr "Remaining this week: 0.00 PLN"
+
+#: main.py:324
+msgid "Z poprzedniego tygodnia wróciło: 0.00 zł"
+msgstr "Rolled over from last week: 0.00 PLN"
+
+#: main.py:327
+msgid "Udało się zaoszczędzić w tym miesiącu: 0.00 zł"
+msgstr "Saved this month: 0.00 PLN"
+
+#: main.py:330
+msgid "Struktura wydatków:"
+msgstr "Expense structure:"
+
+#: main.py:375 main.py:417
+#, python-brace-format
+msgid "Obecny: {}"
+msgstr "Current: {}"
+
+#: main.py:378 main.py:420
+#, python-brace-format
+msgid "Tydzień: {}"
+msgstr "Week: {}"
+
+#: main.py:381
+msgid "Brak limitu na ten tydzień"
+msgstr "No limit for this week"
+
+#: main.py:386
+msgid "Użyj 📅 Limit Tygodnia, aby ustalić limit."
+msgstr "Use 📅 Weekly Limit to set a limit."
+
+#: main.py:423
+#, python-brace-format
+msgid "Limit tygodniowy: {:.2f} zł"
+msgstr "Weekly limit: {:.2f} PLN"
+
+#: main.py:424
+#, python-brace-format
+msgid "Struktura ({}):"
+msgstr "Structure ({}):"
+
+#: main.py:454
+#, python-brace-format
+msgid "Wydano: {:.2f} zł"
+msgstr "Spent: {:.2f} PLN"
+
+#: main.py:456
+#, python-brace-format
+msgid "Przekroczono: {:.2f} zł"
+msgstr "Exceeded: {:.2f} PLN"
+
+#: main.py:459
+#, python-brace-format
+msgid "Pozostało: {:.2f} zł"
+msgstr "Remaining: {:.2f} PLN"
+
+#: main.py:473
+#, python-brace-format
+msgid "Z poprzedniego tygodnia wróciło: {:.2f} zł"
+msgstr "Rolled over from last week: {:.2f} PLN"
+
+#: main.py:475
+msgid "Poprzedni tydzień: brak ustaleń"
+msgstr "Previous week: not set"
+
+#: main.py:496
+#, python-brace-format
+msgid "Udało się zaoszczędzić w miesiącu {}: {:.2f} zł"
+msgstr "Saved in month {}: {:.2f} PLN"
+
+#: main.py:504
+msgid "Brak wydatków."
+msgstr "No expenses."
+
+#: main.py:560
+msgid "+ DODAJ PRZYCHÓD"
+msgstr "+ ADD INCOME"
+
+#: main.py:564
+msgid "- DODAJ WYDATEK"
+msgstr "- ADD EXPENSE"
+
+#: main.py:568
+msgid "$$ OSZCZĘDNOŚCI"
+msgstr "$$ SAVINGS"
+
+#: main.py:572
+msgid "!! DO ODDANIA"
+msgstr "!! LIABILITIES"
+
+#: main.py:583 shopping.py:30 shopping.py:190
+msgid "ID"
+msgstr "ID"
+
+#: main.py:583 reports.py:223 shopping.py:30
+msgid "Data"
+msgstr "Date"
+
+#: main.py:583
+msgid "Kto/Kategoria"
+msgstr "Who/Category"
+
+#: main.py:583 reports.py:223
+msgid "Opis"
+msgstr "Description"
+
+#: main.py:583 reports.py:223
+msgid "Kwota"
+msgstr "Amount"
+
+#: main.py:606
+msgid "Edytuj"
+msgstr "Edit"
+
+#: main.py:611
+#, python-brace-format
+msgid "Usuń ({})"
+msgstr "Delete ({})"
+
+#: main.py:640
+msgid "ODBLOKOWAĆ"
+msgstr "UNLOCK"
+
+#: main.py:640
+msgid "ZAMKNĄĆ"
+msgstr "CLOSE"
+
+#: main.py:641
+#, python-brace-format
+msgid "Czy na pewno chcesz {} miesiąc {}?"
+msgstr "Are you sure you want to {} month {}?"
+
+#: main.py:708
+msgid "🔒 ODBLOKUJ MIESIĄC"
+msgstr "🔒 UNLOCK MONTH"
+
+#: main.py:771
+#, python-brace-format
+msgid "SALDO: {:.2f} PLN"
+msgstr "BALANCE: {:.2f} PLN"
+
+#: main.py:774
+#, python-brace-format
+msgid ""
+"Realne saldo: {:.2f} PLN\n"
+"Zarezerwowane na OBECNY tydzień: {:.2f} PLN"
+msgstr ""
+"Real balance: {:.2f} PLN\n"
+"Reserved for CURRENT week: {:.2f} PLN"
+
+#: main.py:778
+#, python-brace-format
+msgid "z poprzedniego miesiąca: {:.2f} PLN"
+msgstr "from previous month: {:.2f} PLN"
+
+#: main.py:779
+#, python-brace-format
+msgid "Wydatki (ten msc): {:.2f} PLN"
+msgstr "Expenses (this month): {:.2f} PLN"
+
+#: main.py:780
+#, python-brace-format
+msgid "Oszczędności Gotówka (ten msc): {:.2f} PLN"
+msgstr "Cash Savings (this month): {:.2f} PLN"
+
+#: main.py:781
+msgid "Brak przychodów"
+msgstr "No income"
+
+#: main.py:782
+#, python-brace-format
+msgid "ŁĄCZNIE (GOTÓWKA): {:.2f} PLN"
+msgstr "TOTAL (CASH): {:.2f} PLN"
+
+#: main.py:787 main.py:922
+#, python-brace-format
+msgid "Wydatki {} {}"
+msgstr "Expenses {} {}"
+
+#: main.py:820
+#, python-brace-format
+msgid "Czy na pewno chcesz usunąć {} wpisów?"
+msgstr "Are you sure you want to delete {} entries?"
+
+#: main.py:820
+msgid "Czy na pewno chcesz usunąć ten wpis?"
+msgstr "Are you sure you want to delete this entry?"
+
+#: main.py:844
+msgid "Dodano zobowiązanie."
+msgstr "Liability added."
+
+#: main.py:845
+msgid "Taka nazwa już istnieje."
+msgstr "This name already exists."
+
+#: main.py:858
+#, python-brace-format
+msgid "Przesunięto {:.2f} PLN z '{}' do '{}'."
+msgstr "Transferred {:.2f} PLN from '{}' to '{}'."
+
+#: main.py:868
+msgid "Taki cel już istnieje!"
+msgstr "This goal already exists!"
+
+#: main.py:882
+msgid "Miesiąc zamknięty!"
+msgstr "Month closed!"
+
+#: main.py:914
+msgid "Zapisz"
+msgstr "Save"
+
+#: main.py:921
+#, python-brace-format
+msgid "Raport Roczny {}"
+msgstr "Annual Report {}"
+
+#: main.py:921
+#, python-brace-format
+msgid "Raport Miesięczny: {} {}"
+msgstr "Monthly Report: {} {}"
+
+#: main.py:922
+#, python-brace-format
+msgid "Wydatki {}"
+msgstr "Expenses {}"
+
+#: main.py:933
+#, python-brace-format
+msgid "Zapisano: {}"
+msgstr "Saved: {}"
+
+#: main.py:940
+msgid "Brak celów. Dodaj pierwszy (+)"
+msgstr "No goals. Add first (+)"
+
+#: main.py:948
+#, python-brace-format
+msgid "{}: {:.2f} / {:.0f} PLN"
+msgstr "{}: {:.2f} / {:.0f} PLN"
+
+#: main.py:966
+msgid "Usuń cel"
+msgstr "Delete goal"
+
+#: main.py:966
+#, python-brace-format
+msgid "Czy na pewno chcesz usunąć cel: {}?"
+msgstr "Are you sure you want to delete goal: {}?"
+
+#: main.py:967
+msgid "Historia wpłat pozostanie w systemie, ale cel zniknie z listy."
+msgstr "Payment history will remain, but the goal will disappear from the list."
+
+#: main.py:985
+#, python-brace-format
+msgid "PRZETERMINOWANE: {} dni"
+msgstr "OVERDUE: {} days"
+
+#: main.py:988
+#, python-brace-format
+msgid "Pozostało: {} tyg. i {} dni"
+msgstr "Remaining: {} wks and {} days"
+
+#: main.py:988
+#, python-brace-format
+msgid "Pozostało: {} dni"
+msgstr "Remaining: {} days"
+
+#: main.py:990
+msgid "Błąd daty"
+msgstr "Date error"
+
+#: main.py:991
+#, python-brace-format
+msgid "{}: Zostało {:.2f} PLN"
+msgstr "{}: Remaining {:.2f} PLN"
+
+#: main.py:1002
+msgid "Usunąć ten dług z listy? (Historia wpłat zostanie)"
+msgstr "Delete this debt? (Payment history remains)"
+
+#: main.py:1015
+msgid "Zamykanie"
+msgstr "Closing"
+
+#: main.py:1015
+msgid "Backup..."
+msgstr "Backup..."
+
+#: reports.py:121 reports.py:301
+#, python-brace-format
+msgid "Data: {}"
+msgstr "Date: {}"
+
+#: reports.py:125
+msgid "PRZYCHODY:"
+msgstr "INCOME:"
+
+#: reports.py:128
+msgid "Źródło"
+msgstr "Source"
+
+#: reports.py:131 reports.py:149 reports.py:187
+msgid "SUMA"
+msgstr "TOTAL"
+
+#: reports.py:144
+msgid "WYDATKI:"
+msgstr "EXPENSES:"
+
+#: reports.py:146 reports.py:223
+msgid "Kategoria"
+msgstr "Category"
+
+#: reports.py:179
+msgid "SPŁATA ZOBOWIĄZAŃ (Miesiąc):"
+msgstr "LIABILITY REPAYMENT (Month):"
+
+#: reports.py:183
+msgid "Komu"
+msgstr "To whom"
+
+#: reports.py:183
+msgid "Wpłacono"
+msgstr "Paid"
+
+#: reports.py:183
+msgid "Pozostało"
+msgstr "Remaining"
+
+#: reports.py:207
+#, python-brace-format
+msgid "Oszczędności (Gotówka): {:.2f} PLN"
+msgstr "Savings (Cash): {:.2f} PLN"
+
+#: reports.py:209
+#, python-brace-format
+msgid "Wpłaty na Cele: {:.2f} PLN"
+msgstr "Goal Deposits: {:.2f} PLN"
+
+#: reports.py:215
+#, python-brace-format
+msgid "Bilans miesiąca: {:.2f} PLN"
+msgstr "Month Balance: {:.2f} PLN"
+
+#: reports.py:223
+msgid "Typ"
+msgstr "Type"
+
+#: reports.py:228
+msgid "REJESTR SZCZEGÓŁOWY"
+msgstr "DETAILED REGISTER"
+
+#: reports.py:244
+msgid "Wydatek"
+msgstr "Expense"
+
+#: reports.py:246
+msgid "Spłata"
+msgstr "Repayment"
+
+#: reports.py:282
+msgid "WIZUALIZACJA FINANSÓW"
+msgstr "FINANCIAL VISUALIZATION"
+
+#: reports.py:304
+#, python-brace-format
+msgid "Strona {} z {}"
+msgstr "Page {} of {}"
+
+#: reports.py:306
+#, python-brace-format
+msgid "Strona {}"
+msgstr "Page {}"
+
+#: reports.py:347
+msgid "POZOSTAŁE"
+msgstr "OTHERS"
+
+#: shopping.py:15
+msgid "Archiwum List Zakupów"
+msgstr "Shopping List Archive"
+
+#: shopping.py:26
+msgid "Dostępne listy:"
+msgstr "Available lists:"
+
+#: shopping.py:30
+msgid "Nazwa"
+msgstr "Name"
+
+#: shopping.py:30
+msgid "Status"
+msgstr "Status"
+
+#: shopping.py:39
+msgid "Otwórz / Edytuj"
+msgstr "Open / Edit"
+
+#: shopping.py:41
+msgid "Zamknij (status)"
+msgstr "Close (status)"
+
+#: shopping.py:52
+msgid "Podgląd produktów"
+msgstr "Product preview"
+
+#: shopping.py:74
+msgid "Zamknięta"
+msgstr "Closed"
+
+#: shopping.py:74
+msgid "Otwarta"
+msgstr "Open"
+
+#: shopping.py:120
+msgid "Usunąć tę listę trwale?"
+msgstr "Permanently delete this list?"
+
+#: shopping.py:131
+msgid "Lista Zakupów"
+msgstr "Shopping List"
+
+#: shopping.py:139
+msgid "Nazwa listy"
+msgstr "List name"
+
+#: shopping.py:148
+#, python-brace-format
+msgid "{} {} {} ({})"
+msgstr "{} {} {} ({})"
+
+#: shopping.py:151
+msgid "Nazwa listy:"
+msgstr "List name:"
+
+#: shopping.py:156
+msgid "Dodaj produkt"
+msgstr "Add product"
+
+#: shopping.py:161
+msgid "Sklep (np. Biedronka)"
+msgstr "Store (e.g. Supermarket)"
+
+#: shopping.py:166
+msgid "Produkt (np. Mleko)"
+msgstr "Product (e.g. Milk)"
+
+#: shopping.py:169
+msgid "Ile"
+msgstr "Qty"
+
+#: shopping.py:176
+msgid "Dodaj"
+msgstr "Add"
+
+#: shopping.py:190
+msgid "Sklep"
+msgstr "Store"
+
+#: shopping.py:190
+msgid "Produkt"
+msgstr "Product"
+
+#: shopping.py:190
+msgid "Ilość"
+msgstr "Quantity"
+
+#: shopping.py:198
+msgid "--- Opcje ---"
+msgstr "--- Options ---"
+
+#: shopping.py:201
+msgid "📜 Archiwum"
+msgstr "📜 Archive"
+
+#: shopping.py:204
+msgid "🖨️ Drukuj (PDF)"
+msgstr "🖨️ Print (PDF)"
+
+#: shopping.py:207
+msgid "📧 E-mail"
+msgstr "📧 E-mail"
+
+#: shopping.py:210
+msgid "✓ Zakończ listę"
+msgstr "✓ Finish list"
+
+#: shopping.py:214
+msgid "Wyjdź"
+msgstr "Exit"
+
+#: shopping.py:326
+#, python-brace-format
+msgid ""
+"Nie udało się wygenerować PDF:\n"
+"{}"
+msgstr ""
+"Failed to generate PDF:\n"
+"{}"
+
+#: shopping.py:350
+#, python-brace-format
+msgid "ZAKUPY: {}"
+msgstr "SHOPPING: {}"
+
+#: shopping.py:351
+#, python-brace-format
+msgid ""
+"LISTA: {}\n"
+"{}\n"
+"\n"
+"--\n"
+"Budżet Domowy"
+msgstr ""
+"LIST: {}\n"
+"{}\n"
+"\n"
+"--\n"
+"Home Budget"
+
+msgid "Pomiń w limicie tygodniowym"
+msgstr "Skip in weekly limit"
+
+msgid "Wydatek odejmie się od salda głównego, ale nie zajmie miejsca w budżecie na ten tydzień."
+msgstr "The expense will be deducted from the main balance, but it won’t count towards this week’s budget."
+
+
+
+
