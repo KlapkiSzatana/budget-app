@@ -6,14 +6,12 @@ from config import APP_DIR, CASH_SAVINGS_NAME
 
 class DatabaseManager:
     def __init__(self, db_name="budzet.db"):
-        # Używamy ścieżki zdefiniowanej w config.py
         self.db_path = os.path.join(APP_DIR, db_name)
         self.conn = sqlite3.connect(self.db_path)
         self.create_tables()
         self.initialize_config()
 
     def create_tables(self):
-        # Tabela transakcji z obsługą kolumny exclude_from_weekly
         self.conn.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,22 +19,19 @@ class DatabaseManager:
             amount REAL, currency TEXT, exchange_rate REAL,
             exclude_from_weekly INTEGER DEFAULT 0
         )""")
-
         self.conn.execute("CREATE TABLE IF NOT EXISTS people (name TEXT PRIMARY KEY)")
-
-        # TE NAZWY MUSZĄ ZOSTAĆ PO POLSKU (Kompatybilność bazy z poprzednimi wersjami)
         self.conn.execute("INSERT OR IGNORE INTO people VALUES ('Mąż')")
         self.conn.execute("INSERT OR IGNORE INTO people VALUES ('Żona')")
-
         self.conn.execute("CREATE TABLE IF NOT EXISTS month_locks (month_str TEXT PRIMARY KEY)")
         self.conn.execute("CREATE TABLE IF NOT EXISTS categories (name TEXT PRIMARY KEY)")
         self.conn.execute("CREATE TABLE IF NOT EXISTS goals (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, target_amount REAL)")
         self.conn.execute("CREATE TABLE IF NOT EXISTS liabilities (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, total_amount REAL, deadline TEXT)")
+
+        # NOWA TABELA DLA DŁUŻNIKÓW
+        self.conn.execute("CREATE TABLE IF NOT EXISTS debtors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, total_amount REAL, deadline TEXT)")
+
         self.conn.execute("CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT)")
-
-        # Zakupy
         self.conn.execute("CREATE TABLE IF NOT EXISTS shopping_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, created_at TEXT, status TEXT DEFAULT 'open')")
-
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS shopping_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,37 +43,24 @@ class DatabaseManager:
                 FOREIGN KEY(list_id) REFERENCES shopping_lists(id) ON DELETE CASCADE
             )
         """)
-
-        # --- MIGRACJE ---
         try:
             self.conn.execute("ALTER TABLE shopping_items ADD COLUMN store TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass
-
+        except sqlite3.OperationalError: pass
         try:
             self.conn.execute("ALTER TABLE transactions ADD COLUMN exclude_from_weekly INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass # Kolumna już istnieje
+        except sqlite3.OperationalError: pass
 
-        # --- TABELA SKLEPÓW ---
         self.conn.execute("CREATE TABLE IF NOT EXISTS shops (name TEXT PRIMARY KEY)")
-
         cursor = self.conn.execute("SELECT count(*) FROM shops")
         if cursor.fetchone()[0] == 0:
             default_shops = ["Biedronka", "Dino", "Lidl", "Polo", "Kaufland", "Apteka", "Rossmann", "Pepco"]
-            for s in default_shops:
-                self.conn.execute("INSERT OR IGNORE INTO shops VALUES (?)", (s,))
+            for s in default_shops: self.conn.execute("INSERT OR IGNORE INTO shops VALUES (?)", (s,))
 
         cursor = self.conn.execute("SELECT count(*) FROM categories")
         if cursor.fetchone()[0] == 0:
-            defaults = [
-                "Zakupy", "Remonty", "Spłata długów", "Samochód",
-                "Ciuchy", "Opłaty", "Rozrywka", "Inne", "Zdrowie"
-            ]
-            for d in defaults:
-                self.conn.execute("INSERT INTO categories VALUES (?)", (d,))
+            defaults = ["Zakupy", "Remonty", "Spłata Długu", "Samochód", "Ciuchy", "Opłaty", "Rozrywka", "Inne", "Zdrowie", "Pożyczki"]
+            for d in defaults: self.conn.execute("INSERT OR IGNORE INTO categories VALUES (?)", (d,))
 
-        # --- HISTORIA TYGODNIOWA ---
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS weekly_history (
                 monday_date TEXT PRIMARY KEY,
@@ -88,12 +70,10 @@ class DatabaseManager:
         """)
         self.conn.commit()
 
-    # --- METODY KONFIGURACJI ---
     def initialize_config(self):
         if not self.get_config("backup_config"):
             self.save_config("backup_config", {"auto_backup": False, "backup_path": os.path.join(APP_DIR, "backups")})
         if not self.get_config("weekly_limit_config"):
-            # Przy inicjalizacji zaznaczamy wszystkie obecne kategorie jako wliczane
             self.save_config("weekly_limit_config", {"enabled": False, "amount": 500.0, "categories": self.get_categories()})
 
     def get_config(self, key):
@@ -111,11 +91,9 @@ class DatabaseManager:
 
     def get_weekly_config(self):
         cfg = self.get_config("weekly_limit_config")
-        if not cfg:
-            return False, 0.0, None
+        if not cfg: return False, 0.0, None
         return cfg.get("enabled", False), cfg.get("amount", 0.0), cfg.get("categories", None)
 
-    # --- METODY BACKUPU ---
     def perform_backup(self):
         import shutil
         from config import _
@@ -156,9 +134,7 @@ class DatabaseManager:
             self.conn = sqlite3.connect(self.db_path)
             return False
 
-    # --- TRANSAKCJE ---
     def add_transaction(self, date, t_type, category, subcategory, amount, exclude=0):
-        # Parametr exclude domyślnie 0 (wliczany), 1 (pomijany w tygodniówce)
         self.conn.execute("""
             INSERT INTO transactions (date, type, category, subcategory, amount, currency, exchange_rate, exclude_from_weekly)
             VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?)""",
@@ -192,7 +168,6 @@ class DatabaseManager:
         return cursor.fetchone()
 
     def get_expenses_in_range(self, start_date, end_date, allowed_categories=None):
-        # Sumujemy tylko te wydatki, które NIE są wykluczone (exclude_from_weekly = 0)
         query = """
             SELECT category, SUM(amount)
             FROM transactions
@@ -209,7 +184,6 @@ class DatabaseManager:
         query += " GROUP BY category ORDER BY SUM(amount) DESC"
         return self.conn.execute(query, params).fetchall()
 
-    # --- POMOCNICZE (Ludzie/Kategorie) ---
     def add_person(self, name):
         if name:
             self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (name,))
@@ -219,17 +193,13 @@ class DatabaseManager:
         if name:
             name = name.strip()
             self.conn.execute("INSERT OR IGNORE INTO categories VALUES (?)", (name,))
-
-            # 1. Automatyczne dopisanie do GLOBALNEGO limitu (zaznaczona domyślnie)
             cfg = self.get_config("weekly_limit_config")
             if cfg:
-                if "categories" not in cfg or cfg["categories"] is None:
-                    cfg["categories"] = []
+                if "categories" not in cfg or cfg["categories"] is None: cfg["categories"] = []
                 if name not in cfg["categories"]:
                     cfg["categories"].append(name)
                     self.save_config("weekly_limit_config", cfg)
 
-            # 2. Automatyczne dopisanie do TRWAJĄCEGO tygodnia (natychmiastowe liczenie)
             today = datetime.now().date()
             monday = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
             found, amt, cats = self.get_weekly_limit_for_week(monday)
@@ -237,7 +207,6 @@ class DatabaseManager:
                 if name not in cats:
                     cats.append(name)
                     self.set_weekly_limit_for_week(monday, amt, cats)
-
             self.conn.commit()
 
     def delete_category_safe(self, name):
@@ -257,7 +226,6 @@ class DatabaseManager:
     def get_categories(self):
         return [r[0] for r in self.conn.execute("SELECT name FROM categories ORDER BY name").fetchall()]
 
-    # --- CELE ---
     def add_goal(self, name, target_amount):
         try:
             self.conn.execute("INSERT INTO goals (name, target_amount) VALUES (?, ?)", (name, target_amount))
@@ -280,13 +248,17 @@ class DatabaseManager:
             goals_data.append({'id': g_id, 'name': g_name, 'target': g_target, 'collected': current_sum})
         return goals_data
 
-    # --- DŁUGI ---
+    # --- DŁUGI (MOJE ZOBOWIĄZANIA) ---
     def add_liability(self, name, amount, deadline):
         try:
+            # Próbujemy stworzyć nowy wpis
             self.conn.execute("INSERT INTO liabilities (name, total_amount, deadline) VALUES (?, ?, ?)", (name, amount, deadline))
-            self.conn.commit()
-            return True
-        except: return False
+        except sqlite3.IntegrityError:
+            # Jeśli nazwa już istnieje, DOPISUJEMY kwotę do istniejącej i aktualizujemy datę
+            self.conn.execute("UPDATE liabilities SET total_amount = total_amount + ?, deadline = ? WHERE name = ?", (amount, deadline, name))
+
+        self.conn.commit()
+        return True
 
     def delete_liability(self, lid):
         self.conn.execute("DELETE FROM liabilities WHERE id=?", (lid,))
@@ -303,10 +275,40 @@ class DatabaseManager:
             liabilities.append({'id': lid, 'name': name, 'total': total, 'paid': paid, 'deadline': deadline})
         return liabilities
 
-    def get_all_historical_liabilities(self):
-        return [r[0] for r in self.conn.execute("SELECT DISTINCT subcategory FROM transactions WHERE type='liability_repayment' ORDER BY subcategory").fetchall()]
+    # --- DŁUŻNICY (LUDZIE WISZĄ MI KASĘ) - NOWE ---
+    def add_debtor(self, name, amount, deadline):
+        try:
+            # Próbujemy stworzyć nowy wpis
+            self.conn.execute("INSERT INTO debtors (name, total_amount, deadline) VALUES (?, ?, ?)", (name, amount, deadline))
+        except sqlite3.IntegrityError:
+            # Jeśli nazwa już istnieje, DOPISUJEMY kwotę do istniejącej i aktualizujemy datę
+            self.conn.execute("UPDATE debtors SET total_amount = total_amount + ?, deadline = ? WHERE name = ?", (amount, deadline, name))
 
-    # --- STATYSTYKI I BLOKADY ---
+        self.conn.commit()
+        return True
+
+    def delete_debtor(self, did):
+        self.conn.execute("DELETE FROM debtors WHERE id=?", (did,))
+        self.conn.commit()
+
+    def get_debtors_list(self):
+        return [r[0] for r in self.conn.execute("SELECT name FROM debtors ORDER BY name").fetchall()]
+
+    def get_debtors_status(self):
+        debtors = []
+        for did, name, total, deadline in self.conn.execute("SELECT id, name, total_amount, deadline FROM debtors").fetchall():
+            # Sumujemy zwroty (debtor_repayment) dla tego dłużnika
+            res = self.conn.execute("SELECT SUM(amount) FROM transactions WHERE type='debtor_repayment' AND subcategory=?", (name,)).fetchone()[0]
+            paid = res if res else 0.0
+            debtors.append({'id': did, 'name': name, 'total': total, 'paid': paid, 'deadline': deadline})
+        return debtors
+
+    def get_all_historical_liabilities(self):
+        # Pobiera nazwy z historii transakcji (zarówno moje długi jak i dłużników)
+        l1 = [r[0] for r in self.conn.execute("SELECT DISTINCT subcategory FROM transactions WHERE type='liability_repayment'").fetchall()]
+        l2 = [r[0] for r in self.conn.execute("SELECT DISTINCT subcategory FROM transactions WHERE type='debtor_repayment'").fetchall()]
+        return list(set(l1 + l2))
+
     def is_month_locked(self, month_str):
         return self.conn.execute("SELECT 1 FROM month_locks WHERE month_str=?", (month_str,)).fetchone() is not None
 
@@ -328,9 +330,9 @@ class DatabaseManager:
         for t_type, amt in self.conn.execute("SELECT type, amount FROM transactions WHERE date < ?", (date_limit_str,)).fetchall():
             if t_type == 'income': balance += amt
             elif t_type in ['expense', 'savings', 'liability_repayment']: balance -= amt
+            elif t_type == 'debtor_repayment': balance += amt # Zwrot od dłużnika to plus
         return balance
 
-    # --- ZAKUPY ---
     def create_shopping_list(self, name):
         created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur = self.conn.execute("INSERT INTO shopping_lists (name, created_at, status) VALUES (?, ?, 'open')", (name, created))
@@ -364,7 +366,6 @@ class DatabaseManager:
         self.conn.execute("DELETE FROM shopping_lists WHERE id=?", (list_id,))
         self.conn.commit()
 
-    # --- SKLEPY ---
     def add_shop(self, name):
         if name and name.strip():
             self.conn.execute("INSERT OR IGNORE INTO shops VALUES (?)", (name.strip(),))
@@ -374,7 +375,6 @@ class DatabaseManager:
         shops = [r[0] for r in self.conn.execute("SELECT name FROM shops ORDER BY name").fetchall()]
         return [""] + shops
 
-    # --- HISTORIA TYGODNIOWA ---
     def set_weekly_limit_for_week(self, monday_date, amount, categories_list):
         cat_json = json.dumps(categories_list)
         self.conn.execute("INSERT OR REPLACE INTO weekly_history (monday_date, amount, categories) VALUES (?, ?, ?)", (monday_date, amount, cat_json))
