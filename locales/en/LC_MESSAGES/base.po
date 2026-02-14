@@ -1089,6 +1089,86 @@ msgstr "Skip in weekly limit"
 msgid "Wydatek odejmie się od salda głównego, ale nie zajmie miejsca w budżecie na ten tydzień."
 msgstr "The expense will be deducted from the main balance, but it won’t count towards this week’s budget."
 
+# --- DASHBOARD & BUTTONS ---
 
+msgid "$$ DŁUŻNICY"
+msgstr "$$ DEBTORS"
+
+msgid "!! MOJE DŁUGI"
+msgstr "!! MY DEBTS"
+
+msgid "Dłużnicy (Winni mi):"
+msgstr "Debtors (Owe me):"
+
+msgid "Moje Długi (Do oddania):"
+msgstr "My Debts (To pay back):"
+
+# --- CHARTS (WYKRESY) ---
+
+msgid "Dłużnicy"
+msgstr "Debtors"
+
+msgid "Moje Długi"
+msgstr "My Debts"
+
+# --- DIALOGS (OKNA) ---
+
+msgid "Zarządzaj Dłużnikami"
+msgstr "Manage Debtors"
+
+msgid "Nowy Dłużnik (Pożyczam komuś)"
+msgstr "New Debtor (I am lending)"
+
+msgid "Zwrot (Oddaje mi)"
+msgstr "Repayment (Receiving)"
+
+msgid "Wybierz dłużnika:"
+msgstr "Select debtor:"
+
+msgid "Ile pożyczasz"
+msgstr "Lending amount"
+
+msgid "Ile oddał"
+msgstr "Amount returned"
+
+msgid "Planowany zwrot:"
+msgstr "Planned return:"
+
+msgid "Data otrzymania zwrotu:"
+msgstr "Date received:"
+
+msgid "Brak dłużników!"
+msgstr "No debtors found!"
+
+# --- LOGIC & MESSAGES ---
+
+msgid "Zwrot od Dłużnika"
+msgstr "Return from Debtor"
+
+msgid "Zapisano dłużnika i dodano wydatek."
+msgstr "Debtor saved and expense added."
+
+msgid "Zapisano zobowiązanie."
+msgstr "Liability saved."
+
+msgid "Pokaż historię tego dłużnika"
+msgstr "Show history for this debtor"
+
+msgid "Usunąć dłużnika? (Historia wpłat zostanie)"
+msgstr "Delete debtor? (Payment history remains)"
+
+# --- STATUSES (LISTA) ---
+
+msgid "{}: Winny {:.2f} PLN"
+msgstr "{}: Owes {:.2f} PLN"
+
+msgid "PO TERMINIE: {} dni"
+msgstr "OVERDUE: {} days"
+
+msgid "Ma czas: {} tyg. i {} dni"
+msgstr "Time left: {} weeks & {} days"
+
+msgid "Ma czas: {} dni"
+msgstr "Time left: {} days"
 
 
