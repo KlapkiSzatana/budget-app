@@ -275,18 +275,6 @@ class PDFReportGenerator:
             t.drawOn(c, 2*cm, y_pos_start - h)
             if not count_only: self.draw_footer(c, width, page_num, total_pages)
 
-        # --- OSTATNIA STRONA: WYKRES ---
-        c.showPage()
-        page_num += 1
-        c.setFont(self.font_name, 16)
-        c.drawString(2*cm, height - 3*cm, _("WIZUALIZACJA FINANSÓW"))
-
-        if chart_img_buffer:
-            img = ImageReader(chart_img_buffer)
-            img_w, img_h = 16 * cm, 12 * cm
-            c.drawImage(img, (width - img_w)/2, height - 16*cm, width=img_w, height=img_h, mask='auto')
-
-        if not count_only: self.draw_footer(c, width, page_num, total_pages)
         c.save()
         return page_num
 
