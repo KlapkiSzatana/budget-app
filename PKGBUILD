@@ -1,4 +1,4 @@
-# Maintainer: TwójNick
+# Maintainer: KlapkiSzatana
 pkgname=budget-app
 pkgver=0.9.6
 pkgrel=1
@@ -6,24 +6,17 @@ pkgdesc="Zarządzanie Budżetem Domowym"
 arch=('any')
 url="https://github.com/KlapkiSzatana/budget-app"
 license=('GPL-3.0')
-# Tutaj ważne: dodałem python-matplotlib, bo widzę plik charts.py (pewnie tego używasz?)
-# Jeśli używasz tylko PySide6 do wykresów, usuń 'python-matplotlib'
+
 depends=('python' 'pyside6' 'python-matplotlib')
 makedepends=('git')
 
-# Pobieranie po tagu (zalecane). Pamiętaj, żeby zrobić tag na GitHubie (np. v1.0.0)
 source=("${url}/archive/refs/tags/v${pkgver}.tar.gz")
 
-# Jeśli nie masz tagów i chcesz pobierać po prostu branch main (niezalecane produkcyjnie, ale działa):
-# source=("${url}/archive/refs/heads/main.tar.gz")
-# Wtedy folder po rozpakowaniu nazywa się inaczej (zazwyczaj nazwa-repo-main)
 
 sha256sums=('SKIP')
 
 package() {
-    # UWAGA: GitHub po rozpakowaniu tar.gz tworzy folder: nazwa_repo-wersja
-    # Upewnij się, że ta nazwa folderu się zgadza.
-    # Jeśli repo nazywa się 'budget-manager', to tu będzie "budget-manager-${pkgver}"
+
     cd "budget-app-${pkgver}"
 
     # 1. Tworzymy folder docelowy w systemie
