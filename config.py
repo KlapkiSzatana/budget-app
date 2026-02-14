@@ -3,7 +3,7 @@ import os
 import gettext
 
 # --- STAŁE APLIKACJI ---
-WERSJA = "0.9.2"
+WERSJA = "0.9.4"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności gotówka"  # Nazwa techniczna w bazie (nie tłumaczyć klucza)
 
