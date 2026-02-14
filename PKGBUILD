@@ -1,6 +1,6 @@
 # Maintainer: TwójNick
 pkgname=budget-app
-pkgver=0.9.2
+pkgver=0.9.6
 pkgrel=1
 pkgdesc="Zarządzanie Budżetem Domowym"
 arch=('any')
