@@ -17,7 +17,7 @@ class ProcessingDialog(QDialog):
         self.lbl = QLabel(label_text if label_text else _("Proszę czekać..."))
         self.lbl.setAlignment(Qt.AlignCenter)
         self.pbar = QProgressBar()
-        self.pbar.setRange(0, 0) # Indeterminate state
+        self.pbar.setRange(0, 0)
         layout.addWidget(self.lbl)
         layout.addWidget(self.pbar)
 
@@ -28,36 +28,28 @@ class BackupDialog(QDialog):
         self.setWindowTitle(_("Kopia Zapasowa"))
         self.resize(500, 250)
         layout = QVBoxLayout(self)
-
         gb = QGroupBox(_("Ustawienia"))
         form = QFormLayout()
-
         self.cb_auto = QCheckBox(_("Rób automatycznie przy zamknięciu"))
         self.path_edit = QLineEdit()
         self.path_edit.setReadOnly(True)
-
         h = QHBoxLayout()
         h.addWidget(self.path_edit)
         btn = QPushButton("...")
         btn.clicked.connect(self.select_path)
         h.addWidget(btn)
-
         form.addRow(self.cb_auto)
         form.addRow(_("Lokalizacja:"), h)
         gb.setLayout(form)
         layout.addWidget(gb)
-
         h_act = QHBoxLayout()
         b1 = QPushButton(_("Utwórz Kopię Teraz"))
         b1.clicked.connect(self.create_now)
         b2 = QPushButton(_("Przywróć z Kopii"))
         b2.clicked.connect(self.restore_now)
-        h_act.addWidget(b1)
-        h_act.addWidget(b2)
+        h_act.addWidget(b1); h_act.addWidget(b2)
         layout.addLayout(h_act)
-
         self.load_config()
-
         btns = QDialogButtonBox(QDialogButtonBox.Close)
         btns.rejected.connect(self.accept)
         layout.addWidget(btns)
@@ -76,42 +68,30 @@ class BackupDialog(QDialog):
 
     def select_path(self):
         from PySide6.QtWidgets import QFileDialog
-
         d = QFileDialog.getExistingDirectory(self, _("Wybierz folder"))
-        if d:
-            self.path_edit.setText(d)
-            self.save_config()
+        if d: self.path_edit.setText(d); self.save_config()
 
     def create_now(self):
         import time
         from PySide6.QtWidgets import QApplication, QMessageBox
-
         self.save_config()
         pd = ProcessingDialog(self, "Backup", _("Tworzenie..."))
-        pd.show()
-        QApplication.processEvents()
-        time.sleep(0.5)
+        pd.show(); QApplication.processEvents(); time.sleep(0.5)
         success, msg = self.db.perform_backup()
         pd.close()
-
-        if success:
-            QMessageBox.information(self, _("Sukces"), _("Utworzono:\n{}").format(msg))
-        else:
-            QMessageBox.warning(self, _("Błąd"), msg)
+        if success: QMessageBox.information(self, _("Sukces"), _("Utworzono:\n{}").format(msg))
+        else: QMessageBox.warning(self, _("Błąd"), msg)
 
     def restore_now(self):
         import sys
         from PySide6.QtWidgets import QFileDialog, QMessageBox
-
         path = self.path_edit.text()
         f, _ext = QFileDialog.getOpenFileName(self, _("Wybierz plik"), path, "Backup (*.bak)")
-
         if f and QMessageBox.Yes == QMessageBox.question(self, _("Potwierdź"), _("Przywrócenie nadpisze dane. Kontynuować?")):
             if self.db.restore_database(f):
                 QMessageBox.information(self, _("Sukces"), _("Przywrócono. Restartuj aplikację."))
                 sys.exit(0)
-            else:
-                QMessageBox.critical(self, _("Błąd"), _("Nie udało się przywrócić."))
+            else: QMessageBox.critical(self, _("Błąd"), _("Nie udało się przywrócić."))
 
     def closeEvent(self, e):
         self.save_config()
@@ -122,7 +102,6 @@ class WeeklyLimitDialog(QDialog):
         super().__init__(parent)
         self.db = db_manager
         self.target_date = target_monday_date
-
         if not self.target_date:
             from datetime import datetime, timedelta
             today = datetime.now().date()
@@ -131,91 +110,61 @@ class WeeklyLimitDialog(QDialog):
 
         self.setWindowTitle(_("Ustawienia Limitu Tygodniowego"))
         self.resize(420, 550)
-
         layout = QVBoxLayout(self)
-
         self.cb_enabled = QCheckBox(_("Włącz system budżetu tygodniowego"))
         self.cb_enabled.toggled.connect(self.toggle_inputs)
         layout.addWidget(self.cb_enabled)
-
         line = QFrame(); line.setFrameShape(QFrame.HLine); line.setFrameShadow(QFrame.Sunken)
         layout.addWidget(line)
-
         self.settings_container = QWidget()
         self.settings_layout = QVBoxLayout(self.settings_container)
         self.settings_layout.setContentsMargins(0,0,0,0)
-
         self.lbl_info = QLabel(_("Edycja dla tygodnia od: <b>{}</b>").format(self.target_date))
         self.lbl_info.setTextFormat(Qt.RichText)
         self.settings_layout.addWidget(self.lbl_info)
-
         form_layout = QFormLayout()
         self.amount_edit = QLineEdit()
         self.amount_edit.setPlaceholderText("np. 500")
         form_layout.addRow(_("Kwota (PLN):"), self.amount_edit)
         self.settings_layout.addLayout(form_layout)
-
         self.settings_layout.addWidget(QLabel(_("Wybierz kategorie wliczane do limitu:")))
-
         self.cat_list = QListWidget()
         self.cat_list.setSelectionMode(QAbstractItemView.NoSelection)
         self.settings_layout.addWidget(self.cat_list)
-
         h_btns = QHBoxLayout()
         btn_all = QPushButton(_("Zaznacz wszystkie"))
         btn_all.clicked.connect(self.select_all)
         btn_none = QPushButton(_("Odznacz wszystkie"))
         btn_none.clicked.connect(self.deselect_all)
-        h_btns.addWidget(btn_all)
-        h_btns.addWidget(btn_none)
+        h_btns.addWidget(btn_all); h_btns.addWidget(btn_none)
         self.settings_layout.addLayout(h_btns)
-
         layout.addWidget(self.settings_container)
-
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.save_and_close)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
-
         self.load_settings()
 
-    def toggle_inputs(self, checked):
-        self.settings_container.setEnabled(checked)
+    def toggle_inputs(self, checked): self.settings_container.setEnabled(checked)
 
     def load_settings(self):
         is_system_enabled = self.db.is_weekly_system_enabled()
         self.cb_enabled.setChecked(is_system_enabled)
-
-        # Pobieramy dane dla konkretnego tygodnia
         found, amount, saved_cats = self.db.get_weekly_limit_for_week(self.target_date)
-
-        # Pobieramy globalną listę kategorii wliczanych z configu
         global_cfg = self.db.get_config("weekly_limit_config")
         global_active_cats = global_cfg.get("categories", []) if global_cfg else []
-
-        # Jeśli dla tego tygodnia nie było jeszcze ustawień,
-        # bazujemy na tym co jest w globalnym configu
         if not found:
             amount = 0.0
             saved_cats = global_active_cats
-
         self.amount_edit.setText(str(amount))
         all_cats = self.db.get_categories()
-
         self.cat_list.clear()
         for cat in all_cats:
             item = QListWidgetItem(cat)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-
-            # LOGIKA: Jeśli kategoria jest w zapisanych dla tygodnia LUB
-            # właśnie została dodana do globalnego configu - zaznacz
-            if cat in saved_cats or cat in global_active_cats:
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
-
+            if cat in saved_cats or cat in global_active_cats: item.setCheckState(Qt.Checked)
+            else: item.setCheckState(Qt.Unchecked)
             self.cat_list.addItem(item)
-
         self.toggle_inputs(is_system_enabled)
 
     def select_all(self):
@@ -227,21 +176,14 @@ class WeeklyLimitDialog(QDialog):
     def save_and_close(self):
         enabled = self.cb_enabled.isChecked()
         self.db.set_weekly_system_enabled(enabled)
-
         if enabled:
-            try:
-                amt = float(self.amount_edit.text().replace(",", "."))
-            except ValueError:
-                amt = 0.0
-
+            try: amt = float(self.amount_edit.text().replace(",", "."))
+            except ValueError: amt = 0.0
             selected_cats = []
             for i in range(self.cat_list.count()):
                 item = self.cat_list.item(i)
-                if item.checkState() == Qt.Checked:
-                    selected_cats.append(item.text())
-
+                if item.checkState() == Qt.Checked: selected_cats.append(item.text())
             self.db.set_weekly_limit_for_week(self.target_date, amt, selected_cats)
-
         self.accept()
 
 class IncomeDialog(QDialog):
@@ -302,14 +244,11 @@ class AddExpenseDialog(QDialog):
         l.addRow(_("Opis:"), self.desc)
         l.addRow(_("Kwota:"), self.amt)
         self.cb_exclude = QCheckBox(_("Pomiń w limicie tygodniowym"))
-        #self.cb_exclude.setStyleSheet("color: #7f8c8d; font-style: italic;")
-        # ... w l.addRow:
         l.addRow("", self.cb_exclude)
         l.addRow(bb)
 
     def add_c(self):
         from PySide6.QtWidgets import QInputDialog
-
         t, ok = QInputDialog.getText(self, _("Nowa"), _("Nazwa:"))
         if ok and t:
             self.db.add_category(t)
@@ -319,7 +258,6 @@ class AddExpenseDialog(QDialog):
 
     def del_c(self):
         from PySide6.QtWidgets import QMessageBox
-
         c = self.cat.currentText()
         if c and c != _("Inne") and QMessageBox.Yes == QMessageBox.question(self, _("Usuń"), _("Usunąć '{}'?").format(c)):
             self.db.delete_category_safe(c)
@@ -336,6 +274,7 @@ class AddExpenseDialog(QDialog):
             "amount": float(self.amt.text().replace(",", ".")),
             "exclude": 1 if self.cb_exclude.isChecked() else 0
         }
+
 class AddGoalDialog(QDialog):
     def __init__(self, parent=None, db_manager=None):
         super().__init__(parent)
@@ -365,8 +304,7 @@ class AddSavingsDialog(QDialog):
         self.rw=QRadioButton(_("Wypłacam"))
         self.rd.setChecked(True)
         h=QHBoxLayout()
-        h.addWidget(self.rd)
-        h.addWidget(self.rw)
+        h.addWidget(self.rd); h.addWidget(self.rw)
         self.date=QDateEdit(QDate.currentDate())
         h2=QHBoxLayout()
         self.g=QComboBox()
@@ -375,8 +313,7 @@ class AddSavingsDialog(QDialog):
         b=QPushButton("+")
         b.setFixedWidth(30)
         b.clicked.connect(self.add_g)
-        h2.addWidget(self.g)
-        h2.addWidget(b)
+        h2.addWidget(self.g); h2.addWidget(b)
         self.amt=QLineEdit()
         bb=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
         bb.accepted.connect(self.accept)
@@ -401,7 +338,7 @@ class AddSavingsDialog(QDialog):
         return {
             "date": self.date.date().toString("yyyy-MM-dd"),
             "type": "savings",
-            "cat": "Oszczędności", # Kategoria stała w bazie
+            "cat": "Oszczędności",
             "sub": self.g.currentText(),
             "amount": a
         }
@@ -444,8 +381,7 @@ class LiabilitiesDialog(QDialog):
         self.tabs.addButton(self.rb_pay)
         self.rb_new.toggled.connect(self.toggle_mode)
         h_tabs = QHBoxLayout()
-        h_tabs.addWidget(self.rb_new)
-        h_tabs.addWidget(self.rb_pay)
+        h_tabs.addWidget(self.rb_new); h_tabs.addWidget(self.rb_pay)
         self.layout.addLayout(h_tabs)
         self.form_widget = QWidget()
         self.form_layout = QFormLayout(self.form_widget)
@@ -457,7 +393,6 @@ class LiabilitiesDialog(QDialog):
         self.a = QLineEdit()
         self.d = QDateEdit(QDate.currentDate())
         self.d.setCalendarPopup(True)
-        self.lbl_date = QLabel(_("Data wpłaty:"))
         self.lbl_deadline = QLabel(_("Termin zwrotu:"))
         self.form_layout.addRow(self.lbl_n, self.n)
         self.form_layout.addRow(self.lbl_c, self.c)
@@ -491,12 +426,86 @@ class LiabilitiesDialog(QDialog):
 
     def accept(self):
         from PySide6.QtWidgets import QMessageBox
-
         if self.rb_new.isChecked():
             if not self.n.text().strip(): QMessageBox.warning(self, _("Błąd"), _("Podaj nazwę!")); return
             if not self.a.text(): QMessageBox.warning(self, _("Błąd"), _("Podaj kwotę!")); return
         else:
             if self.c.count() == 0: QMessageBox.warning(self, _("Błąd"), _("Brak długów!")); return
+            if not self.a.text(): QMessageBox.warning(self, _("Błąd"), _("Podaj kwotę!")); return
+        super().accept()
+
+    def get_data(self):
+        amt = float(self.a.text().replace(",", "."))
+        if self.rb_new.isChecked():
+            return { "mode": "new", "name": self.n.text().strip(), "amount": amt, "deadline": self.d.date().toString("yyyy-MM-dd") }
+        else:
+            return { "mode": "pay", "name": self.c.currentText(), "amount": amt, "date": self.d.date().toString("yyyy-MM-dd") }
+
+class DebtorsDialog(QDialog):
+    def __init__(self, parent=None, db_manager=None):
+        super().__init__(parent)
+        self.db = db_manager
+        self.setWindowTitle(_("Zarządzaj Dłużnikami"))
+        self.resize(450, 300)
+        self.layout = QVBoxLayout(self)
+        self.tabs = QButtonGroup(self)
+        self.rb_new = QRadioButton(_("Nowy Dłużnik (Pożyczam komuś)"))
+        self.rb_pay = QRadioButton(_("Zwrot (Oddaje mi)"))
+        self.rb_new.setChecked(True)
+        self.tabs.addButton(self.rb_new)
+        self.tabs.addButton(self.rb_pay)
+        self.rb_new.toggled.connect(self.toggle_mode)
+        h_tabs = QHBoxLayout()
+        h_tabs.addWidget(self.rb_new); h_tabs.addWidget(self.rb_pay)
+        self.layout.addLayout(h_tabs)
+        self.form_widget = QWidget()
+        self.form_layout = QFormLayout(self.form_widget)
+        self.layout.addWidget(self.form_widget)
+        self.lbl_n = QLabel(_("Komu (Nazwa):"))
+        self.n = QLineEdit()
+        self.lbl_c = QLabel(_("Wybierz dłużnika:"))
+        self.c = QComboBox()
+        self.a = QLineEdit()
+        self.d = QDateEdit(QDate.currentDate())
+        self.d.setCalendarPopup(True)
+        self.lbl_deadline = QLabel(_("Planowany zwrot:"))
+        self.form_layout.addRow(self.lbl_n, self.n)
+        self.form_layout.addRow(self.lbl_c, self.c)
+        self.form_layout.addRow(_("Kwota:"), self.a)
+        self.form_layout.addRow(self.lbl_deadline, self.d)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.layout.addWidget(self.buttons)
+        self.toggle_mode()
+
+    def toggle_mode(self):
+        is_new = self.rb_new.isChecked()
+        self.lbl_n.setVisible(is_new)
+        self.n.setVisible(is_new)
+        self.lbl_c.setVisible(not is_new)
+        self.c.setVisible(not is_new)
+        if is_new:
+            self.a.setPlaceholderText(_("Ile pożyczasz"))
+            self.lbl_deadline.setText(_("Planowany zwrot:"))
+            self.d.setDate(QDate.currentDate().addMonths(1))
+        else:
+            self.a.setPlaceholderText(_("Ile oddał"))
+            self.lbl_deadline.setText(_("Data otrzymania zwrotu:"))
+            self.d.setDate(QDate.currentDate())
+            self.refresh_combo()
+
+    def refresh_combo(self):
+        self.c.clear()
+        self.c.addItems(self.db.get_debtors_list())
+
+    def accept(self):
+        from PySide6.QtWidgets import QMessageBox
+        if self.rb_new.isChecked():
+            if not self.n.text().strip(): QMessageBox.warning(self, _("Błąd"), _("Podaj nazwę!")); return
+            if not self.a.text(): QMessageBox.warning(self, _("Błąd"), _("Podaj kwotę!")); return
+        else:
+            if self.c.count() == 0: QMessageBox.warning(self, _("Błąd"), _("Brak dłużników!")); return
             if not self.a.text(): QMessageBox.warning(self, _("Błąd"), _("Podaj kwotę!")); return
         super().accept()
 
@@ -537,16 +546,14 @@ class ReportSelectionDialog(QDialog):
         self.rm=QRadioButton(_("Miesiąc"))
         self.ry=QRadioButton(_("Rok"))
         self.rm.setChecked(True)
-        l.addWidget(self.rm)
-        l.addWidget(self.ry)
+        l.addWidget(self.rm); l.addWidget(self.ry)
         h=QHBoxLayout()
         self.cm=QComboBox()
         self.cm.addItems(MONTH_NAME)
         self.cy=QSpinBox()
         self.cy.setRange(2020, 2050)
         self.cy.setValue(QDate.currentDate().year())
-        h.addWidget(self.cm)
-        h.addWidget(self.cy)
+        h.addWidget(self.cm); h.addWidget(self.cy)
         l.addLayout(h)
         bb=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         bb.accepted.connect(self.accept)
