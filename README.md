@@ -1,6 +1,15 @@
-# Budżet Domowy (budget-app) 💰
-
+## Budżet Domowy (budget-app) 💰
 Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, generowania raportów oraz zarządzania listami zakupów.
+
+### Spis treści
+- [Funkcje](#-funkcje)
+- [Wymagania (Zależności)](#-wymagania-zależności)
+- [Instalacja (Arch Linux i pochodne)](#-instalacja-arch-linux-i-pochodne)
+- [Instalacja (Arch z AUR)](#-instalacja-arch-z-aur)
+- [Uruchamianie](#-uruchamianie)
+- [Odinstalowanie](#-odinstalowanie)
+- [Dostępne również na Windows i MacOS](#-dostępne-również-na-windows-i-macos)
+- [Licencja](#-licencja)
 
 ## Funkcje
 *   **Zarządzanie wydatkami:** Podział na kategorie i moduły tematyczne.
