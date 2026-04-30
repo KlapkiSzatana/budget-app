@@ -34,7 +34,7 @@ makepkg -si
 
 lub
 
-## 2.a 🐧 Instalacja (Arch z AUR)
+## 🐧 Instalacja (Arch z AUR)
 
 Aplikację można łatwo zainstalować z repozytorium **AUR (Arch User Repository)**.
 
