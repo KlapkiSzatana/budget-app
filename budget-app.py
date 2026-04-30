@@ -82,7 +82,6 @@ class BudgetApp(QMainWindow):
         QTimer.singleShot(100, self.load_transactions)
         self.check_new_week_prompt()
         self._pending_category_click = None
-        QTimer.singleShot(1000, self.auto_start_guide)
 
     # Szukaj w okolicy linii 1600-1700 (tam gdzie masz inne metody open_...)
 
@@ -2986,12 +2985,6 @@ class BudgetApp(QMainWindow):
             pd.close()
 
         e.accept()
-
-    def auto_start_guide(self):
-        # Sprawdzamy w QSettings, czy przewodnik był już wyświetlany
-        if not self.settings.value("guide_shown", False, type=bool):
-            self.run_guide()
-            self.settings.setValue("guide_shown", True)
 
     def run_guide(self):
         if self.guide:

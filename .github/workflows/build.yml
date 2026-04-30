@@ -81,7 +81,4 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Wdrożono instalator w katalogu użytkownika z pełnym deinstalatorem.
-            - Aplikacja Windows działa w trybie standalone (szybsze uruchamianie).
-            - Dla systemu macOS stworzono instalator w formacie DMG (BudgetApp_macos.dmg).
-            - Dodano opcję tworzenia skrótu na pulpicie.
+            - Usunięto automatyczne uruchamianie przewodnika.
