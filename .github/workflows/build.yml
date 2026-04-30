@@ -1,0 +1,83 @@
+name: Build & Release Budget App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: BudgetApp_Setup.exe
+          - os: macos-14
+            artifact_name: budget-app-macos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 matplotlib pypdf pillow pyinstaller
+
+      - name: Build Executable
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
+            python -m PyInstaller --noconfirm --windowed \
+              --add-data "budget.png;." \
+              --version-file "file_version_info.txt" \
+              --icon "budget.ico" \
+              --name "budget-app" \
+              budget-app.py
+
+            # 2. Tworzenie instalatora za pomocą Inno Setup
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+            # 3. Czyszczenie i przygotowanie plików wynikowych dla Windowsa
+            mkdir -p dist
+            # Przenosimy instalator do folderu dist
+            mv user_setup/BudgetApp_Setup.exe dist/BudgetApp_Setup.exe
+            # Usuwamy pozostałości po PyInstallerze, żeby nie wrzucać ich do Release
+            rm -rf dist/budget-app/
+            rm -f dist/budget-app.exe
+            rm -f dist/budget-app-windows.exe
+          else
+            # Dla macOS zachowujemy onefile
+            python -m PyInstaller --noconfirm --onefile --windowed \
+              --add-data "budget.png:." \
+              --icon "budget.png" \
+              --osx-bundle-identifier "com.klapkiszatana.budget-app" \
+              --name "budget-app" \
+              budget-app.py
+            mv dist/budget-app dist/BudgetApp_macos
+          fi
+
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/BudgetApp_Setup.exe
+            dist/BudgetApp_macos
+          body: |
+            ## Zmiany w tej wersji:
+            - Wdrożono instalator w katalogu użytkownika z pełnym deinstalatorem.
+            - Aplikacja Windows działa w trybie standalone (szybsze uruchamianie).
+            - Dodano opcję tworzenia skrótu na pulpicie.
