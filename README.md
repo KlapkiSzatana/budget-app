@@ -54,7 +54,7 @@ sudo pacman -Rs budget-app
 ### Pobierz najnowszą wersję:
 
 - [Pobierz dla Windows (Instalator)](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_Setup.exe)
-- [Pobierz dla macOS](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_macos)
+- [Pobierz dla macOS](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_macos.dmg)
 
 ## 📝 Licencja
 Projekt udostępniany na licencji GPL-3.0.
