@@ -19,7 +19,7 @@ jobs:
           - os: windows-latest
             artifact_name: BudgetApp_Setup.exe
           - os: macos-14
-            artifact_name: budget-app-macos
+            artifact_name: BudgetApp_macos.dmg
 
     steps:
       - name: Checkout code
@@ -59,14 +59,16 @@ jobs:
             rm -f dist/budget-app.exe
             rm -f dist/budget-app-windows.exe
           else
-            # Dla macOS zachowujemy onefile
-            python -m PyInstaller --noconfirm --onefile --windowed \
+            # 4. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
+            python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
               --icon "budget.png" \
               --osx-bundle-identifier "com.klapkiszatana.budget-app" \
-              --name "budget-app" \
+              --name "BudgetApp" \
               budget-app.py
-            mv dist/budget-app dist/BudgetApp_macos
+
+            # 5. Pakowanie folderu aplikacji do formatu .dmg
+            hdiutil create -volname "BudgetApp" -srcfolder dist/BudgetApp.app -ov -format UDZO dist/BudgetApp_macos.dmg
           fi
 
       - name: Create Release and Upload
@@ -75,9 +77,10 @@ jobs:
         with:
           files: |
             dist/BudgetApp_Setup.exe
-            dist/BudgetApp_macos
+            dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
             - Wdrożono instalator w katalogu użytkownika z pełnym deinstalatorem.
             - Aplikacja Windows działa w trybie standalone (szybsze uruchamianie).
+            - Dla systemu macOS stworzono instalator w formacie DMG (BudgetApp_macos.dmg).
             - Dodano opcję tworzenia skrótu na pulpicie.
