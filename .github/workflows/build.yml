@@ -62,7 +62,8 @@ jobs:
             # 4. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
             python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
-              --icon "budget.png" \
+              --add-data "budget.icns:." \
+              --icon "budget.icns" \
               --osx-bundle-identifier "com.klapkiszatana.budget-app" \
               --name "BudgetApp" \
               budget-app.py
