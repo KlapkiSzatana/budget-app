@@ -25,7 +25,7 @@ Aby aplikacja działała poprawnie na Arch Linux, wymagane są następujące pak
 * `python-pypdf` (obsługa plików PDF)
 * `python-pillow` (przetwarzanie grafiki)
 
-## 🐧 Instalacja (Arch Linux i pochodne)
+## Instalacja (Arch Linux i pochodne)
 
 Najprostszym sposobem instalacji jest użycie dołączonego pliku `PKGBUILD`.
 
@@ -43,7 +43,7 @@ makepkg -si
 
 lub
 
-## 🐧 Instalacja (Arch z AUR)
+## Instalacja (Arch z AUR)
 
 Aplikację można łatwo zainstalować z repozytorium **AUR (Arch User Repository)**.
 
@@ -59,7 +59,7 @@ lub
 paru -S budget-app
 ```
 
-## 🚀 Uruchamianie
+## Uruchamianie
 
 Po instalacji aplikację możesz uruchomić:
 ```bash
@@ -68,7 +68,7 @@ budget-app
 
 Lub znaleźć ją w menu aplikacji jako Budżet Domowy.
 
-## 🗑️ Odinstalowanie
+## Odinstalowanie
 
 Jeśli instalacja odbyła się przez pacmana:
 
@@ -83,7 +83,7 @@ sudo pacman -Rs budget-app
 - [Pobierz dla Windows (Instalator)](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_Setup.exe)
 - [Pobierz dla macOS](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_macos.dmg)
 
-## 📝 Licencja
+## Licencja
 Projekt udostępniany na licencji GPL-3.0.
 
 Autor: KlapkiSzatana
