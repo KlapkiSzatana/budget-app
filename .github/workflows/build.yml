@@ -81,4 +81,4 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Usunięto automatyczne uruchamianie przewodnika.
+            - Poprawiono dodawanie załącznika do Oszczędności

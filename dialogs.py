@@ -840,7 +840,7 @@ class AddSavingsDialog(QDialog):
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
+        path, _filter = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
         if path:
             try:
                 with open(path, "rb") as f: self.attachment_data = f.read()
