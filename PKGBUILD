@@ -1,6 +1,6 @@
 # Maintainer: Heisenberg (KlapkiSzatana)
 pkgname=budget-app
-pkgver=1.3.9
+pkgver=1.3.10
 pkgrel=1
 pkgdesc="Zarządzanie Budżetem Domowym"
 arch=('any')
@@ -19,10 +19,10 @@ source=("budget-app.py"
         "budget.png")
 
 # Sumy kontrolne wygenerujesz potem komendą updpkgsums
-sha256sums=('5f9d57d8a66bb1de9ee22d7d7b40e281e1dc93b4418facce6ad39da2db776934'
-            'a51703351bc2fdf3b65b9180d857fbd30aa6ad3d73b14078dd64325a428d9637'
-            '3d71f5fe03cd683efd9afbab2ddcbb2200baeba6ab57a4724e71e40bc838f3ae'
-            'd3a997960201b0b626713f41d0b6c8225a34760cffcf8b5bece7e6437bb826e6'
+sha256sums=('8b2818cdfa3f324502c7c1ddb4e04a461176be22872f039b26cdefffe0b5658e'
+            'fd830242fcb8ac3b20ef5b66498a9bec206fd521d4e12a1571e220f168b41a30'
+            '1e5813156932d4267e3a6fd668507bc76f7e78ebba98ac83d7a624a4ef1cb862'
+            '922fcab8f2445fdca0044c0ceaff20c1223aec5a599729f77ebcd69e7e859ca8'
             '3145d4a2aa00e7858044fdefccd116a4cb8e0663054a44264480ae7a9bd24c27'
             '51bb7e0156d6803d095b04a9ee53a435fd0215e2a41187dbb5e63b51edfda896'
             'c8cac3a60f30584267765a0549e9cc9665719ae7151f8cfe459bb2cc63f6964c'

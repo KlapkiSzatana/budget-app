@@ -433,7 +433,7 @@ class DatabaseManager:
             print(f"Błąd migracji oszczędności: {e}")
             return False
 
-    def update_transaction(self, tid, tdate, ttype, tcat, tsub, tamt, tdetails, attachment=None):
+    def update_transaction(self, tid, tdate, ttype, tcat, tsub, tamt, tdetails, attachment=None, account_id=None):
         try:
             if attachment and isinstance(attachment, bytes):
                 # Usuń stary plik jeśli istniał
@@ -449,18 +449,18 @@ class DatabaseManager:
 
                 self.conn.execute("""
                     UPDATE transactions
-                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, attachment=?
+                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, attachment=?, account_id=?
                     WHERE id=?
-                """, (tdate, ttype, tcat, tsub, tamt, tdetails, filename, tid))
+                """, (tdate, ttype, tcat, tsub, tamt, tdetails, filename, account_id, tid))
             else:
                 self.conn.execute("""
                     UPDATE transactions
-                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?
+                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, account_id=?
                     WHERE id=?
-                """, (tdate, ttype, tcat, tsub, tamt, tdetails, tid))
+                """, (tdate, ttype, tcat, tsub, tamt, tdetails, account_id, tid))
             self.conn.commit()
         except Exception as e:
-            print(f"Błąd aktualizacji: {e}")
+            print(f"Błąd aktualizacji transakcji: {e}")
 
     def delete_transaction(self, t_id):
         # --- NOWE: Usuwanie pliku przy usuwaniu transakcji ---

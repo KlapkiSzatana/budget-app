@@ -81,4 +81,4 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Poprawiono dodawanie załącznika do Oszczędności
+            - Dodano w edycji transakcji zmianę i wybór konta.

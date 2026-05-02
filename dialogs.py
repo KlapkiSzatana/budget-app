@@ -1384,7 +1384,7 @@ class EditDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.setWindowTitle(_("Edycja transakcji"))
-        self.resize(450, 480)  # Zwiększona wysokość na przycisk załącznika
+        self.resize(450, 530)  # Zwiększona wysokość na przycisk załącznika
 
         l = QFormLayout(self)
 
@@ -1405,6 +1405,20 @@ class EditDialog(QDialog):
 
         self.s = QLineEdit()
         self.s.setText(data[4])
+
+        # --- NOWE: Wybór Konta ---
+        self.lbl_acc = QLabel(_("Konto bankowe:"))
+        self.account_combo = QComboBox()
+        for acc_id, name, bal, acc_color in self.db.get_accounts():
+            self.account_combo.addItem(name, acc_id)
+
+        # Ustawiamy domyślne konto edytowanej transakcji (data[8] to account_id)
+        if len(data) > 8 and data[8] is not None:
+            current_acc_id = int(data[8])
+            index = self.account_combo.findData(current_acc_id)
+            if index >= 0:
+                self.account_combo.setCurrentIndex(index)
+        # -------------------------
 
         # --- Szczegóły jako QTextEdit ---
         self.det = QTextEdit()
@@ -1468,6 +1482,7 @@ class EditDialog(QDialog):
 
         # Układ formularza
         l.addRow(_("Data:"), self.d)
+        l.addRow(_("Konto:"), self.account_combo)
         l.addRow(_("Kategoria:"), self.c)
         l.addRow(_("Opis (Sklep):"), self.s)
         l.addRow(_("Szczegóły:"), self.det)
@@ -1480,7 +1495,7 @@ class EditDialog(QDialog):
         from config import _
 
         # file_ext zamiast _ zapobiega błędom zasięgu
-        path, file_ext = QFileDialog.getOpenFileName(
+        path, _filter = QFileDialog.getOpenFileName(
             self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)"
         )
 
@@ -1507,7 +1522,8 @@ class EditDialog(QDialog):
             "subcategory": self.s.text(),
             "amount": amount_val,
             "details": self.det.toPlainText(),
-            "attachment": self.attachment_data
+            "attachment": self.attachment_data,
+            "account_id": self.account_combo.currentData()
         }
 
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,

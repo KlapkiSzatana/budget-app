@@ -1,6 +1,6 @@
 [Setup]
 AppName=Budżet Domowy
-AppVersion=1.3.9
+AppVersion=1.3.10
 ; Instalacja w AppData użytkownika w folderze Heisenberg\BudgetApp
 DefaultDirName={userappdata}\KlapkiSzatana\BudgetApp
 DefaultGroupName=Budżet Domowy

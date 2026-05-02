@@ -2278,7 +2278,8 @@ class BudgetApp(QMainWindow):
                 d['subcategory'],
                 d['amount'],
                 d['details'],
-                d.get('attachment')
+                d.get('attachment'),
+                account_id=d['account_id']
             )
             self.schedule_update()
 
