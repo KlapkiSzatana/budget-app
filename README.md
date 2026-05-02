@@ -4,6 +4,7 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 ### Spis treści
 - [Funkcje](#funkcje)
 - [Wymagania (Zależności)](#wymagania-zależności)
+- [Budowa ze źródeł](#budowa-ze-źródeł)
 - [Instalacja (Arch Linux i pochodne)](#instalacja-arch-linux-i-pochodne)
 - [Instalacja (Arch z AUR)](#instalacja-arch-z-aur)
 - [Uruchamianie](#uruchamianie)
@@ -24,6 +25,10 @@ Aby aplikacja działała poprawnie na Arch Linux, wymagane są następujące pak
 * `python-matplotlib` (wykresy i statystyki)
 * `python-pypdf` (obsługa plików PDF)
 * `python-pillow` (przetwarzanie grafiki)
+
+## Budowa ze źródeł
+
+Pełna instrukcja budowy lokalnej wersji developerskiej, binarki Linux oraz paczek `.deb` i `.rpm` znajduje się w [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md).
 
 ## Instalacja (Arch Linux i pochodne)
 
@@ -91,5 +96,4 @@ Głównym środowiskiem rozwoju oraz docelową platformą projektu pozostaje jed
 Projekt udostępniany na licencji GPL-3.0.
 
 Autor: KlapkiSzatana
-
 
