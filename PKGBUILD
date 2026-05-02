@@ -1,4 +1,4 @@
-# Maintainer: Heisenberg (KlapkiSzatana)
+# Maintainer: KlapkiSzatana
 pkgname=budget-app
 pkgver=1.3.10
 pkgrel=1
