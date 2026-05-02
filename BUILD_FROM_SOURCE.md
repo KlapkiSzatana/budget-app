@@ -143,7 +143,7 @@ fpm -s dir -t deb \
   --license "GPL-3.0" \
   --url "https://github.com/KlapkiSzatana/budget-app" \
   --maintainer "KlapkiSzatana" \
-  --description "Zarządzanie budżetem domowym" \
+  --description "Zarządzanie Budżetem Domowym" \
   --prefix / \
   -C build/package-root \
   -p build/packages \
@@ -165,7 +165,7 @@ fpm -s dir -t rpm \
   --license "GPL-3.0" \
   --url "https://github.com/KlapkiSzatana/budget-app" \
   --maintainer "KlapkiSzatana" \
-  --description "Zarządzanie budżetem domowym" \
+  --description "Zarządzanie Budżetem Domowym" \
   --prefix / \
   -C build/package-root \
   -p build/packages \
