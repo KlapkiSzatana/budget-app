@@ -3,9 +3,9 @@ import os
 import gettext
 
 # --- STAŁE APLIKACJI ---
-WERSJA = "1.3.10"
+WERSJA = "1.4.0"
 PRODUCENT = "KlapkiSzatana"
-CASH_SAVINGS_NAME = "Oszczędności"  # Nazwa techniczna w bazie (nie tłumaczyć klucza)
+CASH_SAVINGS_NAME = "Oszczędności"
 
 
 # --- KONFIGURACJA ŚCIEŻEK ---

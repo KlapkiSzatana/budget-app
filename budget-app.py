@@ -1823,8 +1823,21 @@ class BudgetApp(QMainWindow):
             final_sav_total = self.db.get_total_savings_cash_pln()
             final_sav_total = final_sav_total if abs(final_sav_total) > 0.001 else 0.0
 
+            # --- POJEDYNCZA ETYKIETA Z PRZEŁAMANIEM NA DWIE LINIE ---
+            month_records = [
+                r for r in rows
+                if r[1].startswith(m_str) and r[2] in ['savings', 'savings_migration', 'goal_deposit']
+            ]
+            deposits = sum(r[5] for r in month_records if r[5] > 0)
+            withdrawals = abs(sum(r[5] for r in month_records if r[5] < 0))
+            net_savings = deposits - withdrawals
+
             self.lbl_savings_month.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.lbl_savings_month.setText(_("Oszczędności (ten msc): {:.2f} zł").format(final_sav_month))
+            self.lbl_savings_month.setText(
+                _("Oszczędności (ten msc): {:.2f} zł<br><span style='font-size: 9pt; font-weight: normal;'>Wpłaty {:.2f} zł - Wypłaty {:.2f} zł</span>").format(net_savings, deposits, withdrawals)
+            )
+            # -------------------------------------------------------
+
             self.lbl_savings_total.setText(_("OSZCZĘDNOŚCI ŁĄCZNIE: {:.2f} zł").format(final_sav_total))
 
             y, m_idx = map(int, m_str.split('-'))

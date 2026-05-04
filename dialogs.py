@@ -874,27 +874,26 @@ class AddSavingsDialog(QDialog):
                 self.accept()
 
     def get_data(self):
-        try: val = float(self.amt.text().replace(",", "."))
-        except ValueError: val = 0.0
+        try:
+            val = float(self.amt.text().replace(",", "."))
+        except ValueError:
+            val = 0.0
 
         wallet_name = self.wallet_account_combo.currentText()
         savings_name = self.savings_account_combo.currentText()
         goal_name = self.g.currentText()
         user_details = self.details.toPlainText().strip()
 
-        if self.rw.isChecked(): # WYPŁACAM
+        if self.rw.isChecked():  # WYPŁACAM
             val = -val
             display_type = _("Wypłata: {}").format(goal_name)
-            # Info: Z konta oszczędnościowego X na konto portfela Y
-            prefix = _("Pobrano z oszczędności na {}. Przestano na: {}").format(savings_name, wallet_name)
-        else: # WPŁACAM
+            prefix = _("Pobrano z oszczędności na {}. Przesłano na: {}").format(savings_name, wallet_name)
+        else:  # WPŁACAM
             display_type = _("Wpłata: {}").format(goal_name)
-            # Info: Z portfela X na oszczędności na koncie Y
             prefix = _("Wpłacono z konta: {}. Odłożono na: {}").format(wallet_name, savings_name)
 
         final_details = f"{prefix}. {user_details}".strip(". ")
 
-        # Zwracamy savings_account_combo, bo to tam fizycznie "lądują" oszczędności w rejestrze
         return {
             "date": self.date.date().toString("yyyy-MM-dd"),
             "type": "savings",
@@ -903,8 +902,41 @@ class AddSavingsDialog(QDialog):
             "amount": val,
             "details": final_details,
             "attachment": self.attachment_data,
-            "account_id": self.savings_account_combo.currentData()
+            "account_id": self.wallet_account_combo.currentData(),  # <-- Zwraca zawsze odpowiednie konto z salda
         }
+
+    def accept(self):
+        from PySide6.QtWidgets import QMessageBox
+        try:
+            val = float(self.amt.text().replace(",", "."))
+        except ValueError:
+            val = 0.0
+
+        wallet_id = self.wallet_account_combo.currentData()
+        savings_id = self.savings_account_combo.currentData()
+        goal_name = self.g.currentText()
+
+        if wallet_id != savings_id:
+            if val <= 0:
+                QMessageBox.warning(self, _("Błąd"), _("Podaj poprawną kwotę"))
+                return
+
+            try:
+                if self.rd.isChecked():  # Wpłata na oszczędności
+                    from_id = wallet_id
+                    to_id = savings_id
+                else:  # Wypłata z oszczędności
+                    from_id = savings_id
+                    to_id = wallet_id
+
+                if self.db.transfer_savings(from_id, to_id, val, goal_name):
+                    super().accept()
+                else:
+                    raise Exception(_("Nie udało się przeprowadzić transferu"))
+            except Exception as e:
+                QMessageBox.critical(self, _("Błąd"), str(e))
+        else:
+            super().accept()
 
 class TransferDialog(QDialog):
     def __init__(self, parent=None, db_manager=None):
