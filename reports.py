@@ -195,7 +195,8 @@ class PDFReportGenerator:
         }
 
         # 1. FILTROWANIE: Wyrzucamy zera
-        valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01]
+        #valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01]
+        valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01 and t[2] != 'savings_migration']
 
         # 2. SORTOWANIE: Od najstarszej (data) i według kolejności dodania (id)
         # To gwarantuje, że 5 transakcji z tego samego dnia będzie w tej samej kolejności co w tabeli

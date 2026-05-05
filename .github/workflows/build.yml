@@ -81,8 +81,7 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Poprawki w sekcji "Oszczędności"
-            - Poprawki przelewu między kontami
-            - Poprawiono wpłaty i wypłatu między kontami
-            - Etykieta "Oszczędności (ten msc)" pokazuje "wpłaty - wypłaty = bilans" w obrębie miesiąca
-            - Zmiana ikony programu (bez tła)
+            - Poprawki w przenoszeniu między kontami (oszczędności - saldo)
+            - Ukrycie zbędnych wpisów migracyjnych w tabeli (mniej zaśmieca)
+            - Poprawa w generowaniu PDF (ukrycie wpisów migracyjnych)
+            - Oszczędności (ten msc) - poprawa wyświetlania wpłaty i wypłaty

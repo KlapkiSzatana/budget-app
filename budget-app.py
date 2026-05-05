@@ -1697,6 +1697,8 @@ class BudgetApp(QMainWindow):
                             show = True
 
                 if show:
+                    if ttype == "savings_migration":
+                        continue
                     filtered_data.append(r)
 
             palette_text = self.palette().color(QPalette.Text)
@@ -1731,7 +1733,8 @@ class BudgetApp(QMainWindow):
                 display_cat_with_acc = f"{base_cat} [{acc_name}]"
 
                 set_c(2, display_cat_with_acc, acc_color)
-                set_c(3, tsub)
+                display_sub = _("Migracja oszczędności") if ttype == 'savings_migration' else tsub
+                set_c(3, display_sub)
 
                 t_clr = "#27ae60" if ttype == "income" else ("#c0392b" if ttype == "expense" else ("#d35400" if ttype == "debtor_repayment" else "#2980b9"))
                 set_c(4, f"{tamt:.2f}", t_clr)
@@ -1823,10 +1826,10 @@ class BudgetApp(QMainWindow):
             final_sav_total = self.db.get_total_savings_cash_pln()
             final_sav_total = final_sav_total if abs(final_sav_total) > 0.001 else 0.0
 
-            # --- POJEDYNCZA ETYKIETA Z PRZEŁAMANIEM NA DWIE LINIE ---
+            # --- POJEDYNCZA ETYKIETA BEZ MIGRACJI OSZCZĘDNOŚCI ---
             month_records = [
                 r for r in rows
-                if r[1].startswith(m_str) and r[2] in ['savings', 'savings_migration', 'goal_deposit']
+                if r[1].startswith(m_str) and r[2] in ['savings', 'goal_deposit']
             ]
             deposits = sum(r[5] for r in month_records if r[5] > 0)
             withdrawals = abs(sum(r[5] for r in month_records if r[5] < 0))
@@ -1836,7 +1839,7 @@ class BudgetApp(QMainWindow):
             self.lbl_savings_month.setText(
                 _("Oszczędności (ten msc): {:.2f} zł<br><span style='font-size: 9pt; font-weight: normal;'>Wpłaty {:.2f} zł - Wypłaty {:.2f} zł</span>").format(net_savings, deposits, withdrawals)
             )
-            # -------------------------------------------------------
+            # --------------------------------------------------------
 
             self.lbl_savings_total.setText(_("OSZCZĘDNOŚCI ŁĄCZNIE: {:.2f} zł").format(final_sav_total))
 

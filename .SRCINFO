@@ -1,6 +1,6 @@
 pkgbase = budget-app
 	pkgdesc = Zarządzanie Budżetem Domowym
-	pkgver = 1.4.0
+	pkgver = 1.5.1
 	pkgrel = 1
 	url = https://github.com/KlapkiSzatana/budget-app
 	arch = any
@@ -18,13 +18,13 @@ pkgbase = budget-app
 	source = settings_dialog.py
 	source = shopping.py
 	source = budget.png
-	sha256sums = 0a530ab6439ab3e216ff3b69d026afcbafade4f5c7d2e92a7b8876658ed56c87
-	sha256sums = b8dd44dcdf4faa2760c869f8fd55465cdd82f2e0ed554848c8fb9d843239cbad
+	sha256sums = 2c0fae20fe2851b2787089ccb6256105ea3acc6b9a7438b49184c21900e405fb
+	sha256sums = 46e63ae30718a411f002e8c45841b0aa2714f0e177a85c3f5acad05a46188bab
 	sha256sums = 1e5813156932d4267e3a6fd668507bc76f7e78ebba98ac83d7a624a4ef1cb862
 	sha256sums = a035199b868a60a64e94df62a838f9a2e03e9b72514f56bae17cce59805a8b94
-	sha256sums = 3145d4a2aa00e7858044fdefccd116a4cb8e0663054a44264480ae7a9bd24c27
+	sha256sums = defcf0391c6b5519c98cc96644d5dc847dba1334dfaab44c4547a94eb61288ce
 	sha256sums = 51bb7e0156d6803d095b04a9ee53a435fd0215e2a41187dbb5e63b51edfda896
 	sha256sums = c8cac3a60f30584267765a0549e9cc9665719ae7151f8cfe459bb2cc63f6964c
-	sha256sums = 7919b3aefeb2529d429408fd618a560ea6456e5a163b9bd6afeab4397d6b311a
+	sha256sums = f8e73616b675620be4c8d93d1c942502fd6932ca9c01ebf6ffe7051fc61c32f6
 
 pkgname = budget-app
