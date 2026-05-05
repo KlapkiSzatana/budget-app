@@ -81,7 +81,5 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Poprawki w przenoszeniu między kontami (oszczędności - saldo)
-            - Ukrycie zbędnych wpisów migracyjnych w tabeli (mniej zaśmieca)
-            - Poprawa w generowaniu PDF (ukrycie wpisów migracyjnych)
-            - Oszczędności (ten msc) - poprawa wyświetlania wpłaty i wypłaty
+            - Poprawka z ikoną podwójną w Arch Linux przy uruchamianiu
+            - Ikonka programu bez tła

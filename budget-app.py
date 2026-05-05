@@ -82,6 +82,7 @@ class BudgetApp(QMainWindow):
         QTimer.singleShot(100, self.load_transactions)
         self.check_new_week_prompt()
         self._pending_category_click = None
+        self.setVisible(False)
 
     # Szukaj w okolicy linii 1600-1700 (tam gdzie masz inne metody open_...)
 
@@ -2004,6 +2005,10 @@ class BudgetApp(QMainWindow):
             if self._pending_refresh:
                 self._pending_refresh = False
                 self.update_timer.start(0)
+
+            # Pokaż okno, jeśli jest ukryte po starcie
+            if not self.isVisible():
+                self.show()
 
     #def on_chart_pick(self, event):
         #pass
