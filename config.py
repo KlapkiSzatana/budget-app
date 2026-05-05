@@ -3,9 +3,10 @@ import os
 import gettext
 
 # --- STAŁE APLIKACJI ---
-WERSJA = "1.5.2"
+WERSJA = "1.5.3"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
+APP_ID = "budget-app"
 
 
 # --- KONFIGURACJA ŚCIEŻEK ---

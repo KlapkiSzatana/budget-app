@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from PySide6.QtCore import Qt, QSettings, QDate, QTimer, QTranslator, QLocale
 from PySide6.QtGui import QColor, QPalette, QIcon, QKeyEvent, QAction
 
-from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME
+from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID
 from database import DatabaseManager
 from dialogs import AppGuide
 from config import save_table_widths, load_table_widths
@@ -37,6 +37,7 @@ class ClickableDebtLabel(QLabel):
 class BudgetApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle(f"{APPNAME}")
         self.resize(1200, 950)
         self.db = DatabaseManager()
@@ -3016,6 +3017,10 @@ class BudgetApp(QMainWindow):
 
 if __name__ == "__main__":
     setup_crash_handlers()
+    if sys.platform.startswith("linux"):
+        os.environ.setdefault("RESOURCE_NAME", APP_ID)
+    QApplication.setApplicationName(APP_ID)
+    QApplication.setOrganizationName(PRODUCENT)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     class HardcodedSystemTranslator(QTranslator):
@@ -3042,8 +3047,8 @@ if __name__ == "__main__":
         manual_translator = HardcodedSystemTranslator()
         app.installTranslator(manual_translator)
         app._manual_translator_ref = manual_translator
-    desktop_id = os.environ.get("APP_ID", "budget-app")
-    app.setDesktopFileName(desktop_id)
+    app.setApplicationDisplayName(APPNAME)
+    app.setDesktopFileName(os.environ.get("APP_ID", APP_ID))
     app.setWindowIcon(QIcon(icon_path))
     w = BudgetApp()
     w.show()

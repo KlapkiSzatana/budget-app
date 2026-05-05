@@ -81,5 +81,4 @@ jobs:
             dist/BudgetApp_macos.dmg
           body: |
             ## Zmiany w tej wersji:
-            - Poprawka z ikoną podwójną w Arch Linux przy uruchamianiu
-            - Ikonka programu bez tła
+            - Tymczasowo usunięto błąd z ikoną w Arch Linux
