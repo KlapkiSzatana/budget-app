@@ -1,6 +1,5 @@
 import sys
 import os
-import reportlab
 from datetime import datetime, timedelta
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
