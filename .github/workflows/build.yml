@@ -72,6 +72,11 @@ jobs:
             mkdir -p linux-package
             cp -r dist/BudgetApp linux-package/
             cp budget.png linux-package/
+            cp install.run linux-package/
+            cp uninstall.run linux-package/
+
+            chmod +x linux-package/install.run
+            chmod +x linux-package/uninstall.run
 
             # Bezpieczny zapis pliku .desktop (wzorowany na PKGBUILD, bez błędów parsera macOS)
             echo "[Desktop Entry]" > linux-package/BudgetApp.desktop
@@ -79,13 +84,15 @@ jobs:
             echo "Name[pl]=Budżet Domowy" >> linux-package/BudgetApp.desktop
             echo "Comment=Home Budget Management" >> linux-package/BudgetApp.desktop
             echo "Comment[pl]=Zarządzanie Budżetem Domowym" >> linux-package/BudgetApp.desktop
-            echo "Exec=BudgetApp/BudgetApp" >> linux-package/BudgetApp.desktop
-            echo "Icon=budget" >> linux-package/BudgetApp.desktop
+            echo "Exec=/opt/BudgetApp/BudgetApp/BudgetApp" >> linux-package/BudgetApp.desktop
+            echo "Icon=/opt/BudgetApp/budget.png" >> linux-package/BudgetApp.desktop
             echo "Terminal=false" >> linux-package/BudgetApp.desktop
             echo "Type=Application" >> linux-package/BudgetApp.desktop
             echo "Categories=Office;Finance;" >> linux-package/BudgetApp.desktop
             echo "StartupWMClass=BudgetApp" >> linux-package/BudgetApp.desktop
-            echo "StartupNotify=false" >> linux-package/BudgetApp.desktop
+            echo "StartupNotify=true" >> linux-package/BudgetApp.desktop
+
+            chmod +x linux-package/BudgetApp.desktop
 
             tar -czf dist/BudgetApp_linux.tar.gz linux-package
 
@@ -113,6 +120,6 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dodano stabilny build dla Linux (Arch/Debian/Ubuntu)
+            - Dodano stabilny build dla Linux wraz z install i uninstall
             - Dodano menu aplikacji
             - Dodano skróty klawiaturowe

@@ -9,6 +9,7 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 - [Instalacja (Arch z AUR)](#instalacja-arch-z-aur)
 - [Uruchamianie](#uruchamianie)
 - [Odinstalowanie](#odinstalowanie)
+- [Wersja gotowa dla Linux](#dostępna-również-gotowa-wersja-bin-dla-linux)
 - [Dostępne również na Windows i MacOS](#dostępne-również-na-windows-i-macos)
 - [Licencja](#licencja)
 
@@ -84,6 +85,54 @@ Jeśli instalacja odbyła się przez pacmana:
 sudo pacman -Rs budget-app
 ```
 
+## Dostępna również gotowa wersja bin dla Linux
+
+Wersja aplikacji automatycznie kompilowana i publikowana przy użyciu GitHub Actions. Dzięki temu proces budowania pozostaje spójny i w pełni zautomatyzowany.
+
+Poniżej link do pobrania gotowej aplikacji.
+
+### Pobierz najnowszą wersję:
+
+- [Pobierz dla Linux](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_linux.tar.gz)
+
+## Instalacja i Deinstalacja (Linux)
+
+Paczka zawiera gotowe skrypty, które automatycznie instalują aplikację w katalogu `/opt/BudgetApp` oraz dodają skrót do systemowego menu aplikacji (dzięki czemu program jest dostępny dla wszystkich użytkowników systemu).
+
+### Wymagania
+Instalacja i deinstalacja wymagają uprawnień administratora (`sudo`). Skrypty same poproszą o podanie hasła w terminalu.
+
+---
+
+### Instrukcja Instalacji
+
+1. Pobierz i rozpakuj archiwum `BudgetApp_linux.tar.gz`.
+2. Otwórz terminal w rozpakowanym katalogu `linux-package` i uruchom skrypt instalacyjny:
+
+```bash
+./install.run
+```
+
+3. Po zakończeniu instalacji ikona Budżet Domowy pojawi się w Twoim menu aplikacji.
+
+### Instrukcja Deinstalacji
+
+Jeśli chcesz całkowicie usunąć aplikację wraz ze wszystkimi skrótami z systemu:
+
+1. Otwórz terminal w katalogu linux-package.
+
+2. Uruchom skrypt deinstalacyjny:
+
+```bash
+./uninstall.run
+```
+
+3. (Alternatywnie, możesz usunąć aplikację ręcznie, wpisując w terminalu: 
+
+```bash
+sudo rm -rf /opt/BudgetApp /usr/share/applications/BudgetApp.desktop && sudo update-desktop-database /usr/share/applications
+```
+
 ## Dostępne również na Windows i MacOS
 
 Wersje aplikacji na macOS oraz Windows są automatycznie kompilowane i publikowane przy użyciu GitHub Actions. Dzięki temu proces budowania pozostaje spójny i w pełni zautomatyzowany dla tych platform.
@@ -98,5 +147,9 @@ Głównym środowiskiem rozwoju oraz docelową platformą projektu pozostaje jed
 ## Licencja
 Projekt udostępniany na licencji GPL-3.0.
 
-Autor: KlapkiSzatana
+**Enjoy!**
+
+👤 Autor
+
+KlapkiSzatana
 
