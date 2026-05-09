@@ -90,7 +90,7 @@ jobs:
             echo "Type=Application" >> linux-package/BudgetApp.desktop
             echo "Categories=Office;Finance;" >> linux-package/BudgetApp.desktop
             echo "StartupWMClass=BudgetApp" >> linux-package/BudgetApp.desktop
-            echo "StartupNotify=true" >> linux-package/BudgetApp.desktop
+            echo "StartupNotify=false" >> linux-package/BudgetApp.desktop
 
             chmod +x linux-package/BudgetApp.desktop
 
