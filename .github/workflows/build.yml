@@ -3,7 +3,8 @@ name: Build & Release Budget App
 on:
   push:
     tags:
-      - 'v*' # Uruchamia proces wyłącznie przy stworzeniu tagu v* (np. v1.8.0)
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,15 +18,10 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: BudgetApp_Setup.exe
-            file_to_upload: dist/BudgetApp_Setup.exe
-
           - os: macos-14
             artifact_name: BudgetApp_macos.dmg
-            file_to_upload: dist/BudgetApp_macos.dmg
-
           - os: ubuntu-22.04
             artifact_name: BudgetApp_linux.tar.gz
-            file_to_upload: dist/BudgetApp_linux.tar.gz
 
     steps:
       - name: Checkout code
@@ -45,7 +41,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            echo "Building Windows version..."
+            # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
             python -m PyInstaller --noconfirm --windowed \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
@@ -53,32 +49,20 @@ jobs:
               --name "budget-app" \
               budget-app.py
 
+            # 2. Tworzenie instalatora za pomocą Inno Setup
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+            # 3. Czyszczenie i przygotowanie plików wynikowych dla Windowsa
             mkdir -p dist
+            # Przenosimy instalator do folderu dist
             mv user_setup/BudgetApp_Setup.exe dist/BudgetApp_Setup.exe
+            # Usuwamy pozostałości po PyInstallerze, żeby nie wrzucać ich do Release
             rm -rf dist/budget-app/
             rm -f dist/budget-app.exe
             rm -f dist/budget-app-windows.exe
 
-          elif [ "${{ matrix.os }}" == "macos-14" ]; then
-            echo "Building macOS version..."
-            python -m PyInstaller --noconfirm --onedir --windowed \
-              --add-data "budget.png:." \
-              --add-data "budget.icns:." \
-              --icon "budget.icns" \
-              --osx-bundle-identifier "com.klapkiszatana.budget-app" \
-              --name "BudgetApp" \
-              budget-app.py
-
-            hdiutil create \
-              -volname "BudgetApp" \
-              -srcfolder dist/BudgetApp.app \
-              -ov \
-              -format UDZO \
-              dist/BudgetApp_macos.dmg
-
-          else
-            echo "Building Linux version..."
+          elif [ "${{ matrix.os }}" == "ubuntu-22.04" ]; then
+            # 4. Dla Linuxa: budowanie w trybie --onedir
             python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
               --icon "budget.png" \
@@ -89,52 +73,46 @@ jobs:
             cp -r dist/BudgetApp linux-package/
             cp budget.png linux-package/
 
-            cat > linux-package/BudgetApp.desktop <<EOF
-            [Desktop Entry]
-            Name=BudgetApp
-            Exec=BudgetApp/BudgetApp
-            Icon=budget
-            Type=Application
-            Categories=Office;
-            Terminal=false
-            EOF
+            # Bezpieczny zapis pliku .desktop (wzorowany na PKGBUILD, bez błędów parsera macOS)
+            echo "[Desktop Entry]" > linux-package/BudgetApp.desktop
+            echo "Name=Home Budget" >> linux-package/BudgetApp.desktop
+            echo "Name[pl]=Budżet Domowy" >> linux-package/BudgetApp.desktop
+            echo "Comment=Home Budget Management" >> linux-package/BudgetApp.desktop
+            echo "Comment[pl]=Zarządzanie Budżetem Domowym" >> linux-package/BudgetApp.desktop
+            echo "Exec=BudgetApp/BudgetApp" >> linux-package/BudgetApp.desktop
+            echo "Icon=budget" >> linux-package/BudgetApp.desktop
+            echo "Terminal=false" >> linux-package/BudgetApp.desktop
+            echo "Type=Application" >> linux-package/BudgetApp.desktop
+            echo "Categories=Office;Finance;" >> linux-package/BudgetApp.desktop
+            echo "StartupWMClass=BudgetApp" >> linux-package/BudgetApp.desktop
+            echo "StartupNotify=false" >> linux-package/BudgetApp.desktop
 
             tar -czf dist/BudgetApp_linux.tar.gz linux-package
+
+          else
+            # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
+            python -m PyInstaller --noconfirm --onedir --windowed \
+              --add-data "budget.png:." \
+              --add-data "budget.icns:." \
+              --icon "budget.icns" \
+              --osx-bundle-identifier "com.klapkiszatana.budget-app" \
+              --name "BudgetApp" \
+              budget-app.py
+
+            # 6. Pakowanie folderu aplikacji do formatu .dmg
+            hdiutil create -volname "BudgetApp" -srcfolder dist/BudgetApp.app -ov -format UDZO dist/BudgetApp_macos.dmg
           fi
 
-      # Przesyłamy zbudowany plik do pamięci podręcznej workflow
-      - name: Upload built artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.file_to_upload }}
-          retention-days: 1
-
-  release:
-    name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Pobieramy wszystkie 3 paczki zbudowane w poprzednim kroku
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist-release/
-          merge-multiple: true
-
-      # Tworzymy jeden zbiorczy Release na GitHubie ze wszystkimi plikami
-      - name: Create GitHub Release
+      - name: Create Release and Upload
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            dist-release/BudgetApp_Setup.exe
-            dist-release/BudgetApp_macos.dmg
-            dist-release/BudgetApp_linux.tar.gz
+            dist/BudgetApp_Setup.exe
+            dist/BudgetApp_macos.dmg
+            dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dodano build dla Linux
+            - Dodano stabilny build dla Linux (Arch/Debian/Ubuntu)
             - Dodano menu aplikacji
             - Dodano skróty klawiaturowe
