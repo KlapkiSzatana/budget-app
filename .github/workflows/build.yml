@@ -63,7 +63,7 @@ jobs:
 
           elif [ "${{ matrix.os }}" == "ubuntu-22.04" ]; then
             # 4. Dla Linuxa: budowanie w trybie --onedir
-            python -m PyInstaller --noconfirm --onedir --windowed \
+            python -m PyInstaller --noconfirm --onedir --windowed --hidden-import=reportlab \
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
