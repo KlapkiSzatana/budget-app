@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from PySide6.QtCore import Qt, QSettings, QDate, QTimer, QTranslator, QLocale
 from PySide6.QtGui import QColor, QPalette, QIcon, QKeyEvent, QAction
 
-from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID
+from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID, AppMenuConfig
 from database import DatabaseManager
 from dialogs import AppGuide
 from config import save_table_widths, load_table_widths
@@ -76,6 +76,8 @@ class BudgetApp(QMainWindow):
         self.setup_table()
         self.setup_footer()
         self.apply_module_visibility()
+        self.menu_manager = AppMenuConfig(self)
+        self.menu_manager.setup_all_menus()
 
         if g := self.settings.value("geometry"): self.restoreGeometry(g)
         if s := self.settings.value("windowState"): self.restoreState(s)

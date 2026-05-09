@@ -30,6 +30,9 @@ Aby aplikacja działała poprawnie na Arch Linux, wymagane są następujące pak
 
 Pełna instrukcja budowy lokalnej wersji developerskiej, binarki Linux oraz paczek `.deb` i `.rpm` znajduje się w [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md).
 
+## Znane Błędy!
+Lista znanych błedów znajduje się w [ZNANE_BŁĘDY.md](ZNANE_BŁĘDY.md).
+
 ## Instalacja (Arch Linux i pochodne)
 
 Najprostszym sposobem instalacji jest użycie dołączonego pliku `PKGBUILD`.

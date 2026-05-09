@@ -13,13 +13,18 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       matrix:
         include:
           - os: windows-latest
             artifact_name: BudgetApp_Setup.exe
+
           - os: macos-14
             artifact_name: BudgetApp_macos.dmg
+
+          - os: ubuntu-22.04
+            artifact_name: BudgetApp_linux.tar.gz
 
     steps:
       - name: Checkout code
@@ -39,7 +44,9 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
+
+            echo "Building Windows version..."
+
             python -m PyInstaller --noconfirm --windowed \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
@@ -47,19 +54,20 @@ jobs:
               --name "budget-app" \
               budget-app.py
 
-            # 2. Tworzenie instalatora za pomocą Inno Setup
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-            # 3. Czyszczenie i przygotowanie plików wynikowych dla Windowsa
             mkdir -p dist
-            # Przenosimy instalator do folderu dist
+
             mv user_setup/BudgetApp_Setup.exe dist/BudgetApp_Setup.exe
-            # Usuwamy pozostałości po PyInstallerze, żeby nie wrzucać ich do Release
+
             rm -rf dist/budget-app/
             rm -f dist/budget-app.exe
             rm -f dist/budget-app-windows.exe
-          else
-            # 4. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
+
+          elif [ "${{ matrix.os }}" == "macos-14" ]; then
+
+            echo "Building macOS version..."
+
             python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
@@ -68,8 +76,40 @@ jobs:
               --name "BudgetApp" \
               budget-app.py
 
-            # 5. Pakowanie folderu aplikacji do formatu .dmg
-            hdiutil create -volname "BudgetApp" -srcfolder dist/BudgetApp.app -ov -format UDZO dist/BudgetApp_macos.dmg
+            hdiutil create \
+              -volname "BudgetApp" \
+              -srcfolder dist/BudgetApp.app \
+              -ov \
+              -format UDZO \
+              dist/BudgetApp_macos.dmg
+
+          else
+
+            echo "Building Linux version..."
+
+            python -m PyInstaller --noconfirm --onedir --windowed \
+              --add-data "budget.png:." \
+              --icon "budget.png" \
+              --name "BudgetApp" \
+              budget-app.py
+
+            mkdir -p linux-package
+
+            cp -r dist/BudgetApp linux-package/
+            cp budget.png linux-package/
+
+            cat > linux-package/BudgetApp.desktop <<EOF
+[Desktop Entry]
+Name=BudgetApp
+Exec=BudgetApp/BudgetApp
+Icon=budget
+Type=Application
+Categories=Office;
+Terminal=false
+EOF
+
+            tar -czf dist/BudgetApp_linux.tar.gz linux-package
+
           fi
 
       - name: Create Release and Upload
@@ -79,6 +119,10 @@ jobs:
           files: |
             dist/BudgetApp_Setup.exe
             dist/BudgetApp_macos.dmg
+            dist/BudgetApp_linux.tar.gz
+
           body: |
             ## Zmiany w tej wersji:
-            - Tymczasowo usunięto błąd z ikoną w Arch Linux
+            - Dodano build dla Linux
+            - Dodano menu aplikacji
+            - Dodano skróty klawiaturowe
