@@ -70,7 +70,7 @@ jobs:
               --collect-all reportlab \
               --add-data "budget.png:." \
               --icon "budget.png" \
-              --name "budget-app" \
+              --name "BudgetApp" \
               budget-app.py
 
             mkdir -p linux-package
