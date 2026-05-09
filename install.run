@@ -44,8 +44,8 @@ mkdir -p "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR"/*
 
 echo "-> Kopiowanie plików aplikacji..."
-cp -r archive-app-linux "$INSTALL_DIR/"
-cp archive.png "$INSTALL_DIR/"
+cp -r BudgetApp "$INSTALL_DIR/"
+cp budget.png "$INSTALL_DIR/"
 cp "$DESKTOP_FILE" "$INSTALL_DIR/"
 
 # 4. Nadanie uprawnień wykonywalnych dla binarki

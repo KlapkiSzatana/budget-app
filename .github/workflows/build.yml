@@ -84,7 +84,7 @@ jobs:
             echo "Name[pl]=Budżet Domowy" >> linux-package/BudgetApp.desktop
             echo "Comment=Home Budget Management" >> linux-package/BudgetApp.desktop
             echo "Comment[pl]=Zarządzanie Budżetem Domowym" >> linux-package/BudgetApp.desktop
-            echo "Exec=/opt/BudgetApp/BudgetApp/BudgetApp" >> linux-package/BudgetApp.desktop
+            echo "Exec=/opt/BudgetApp/BudgetApp" >> linux-package/BudgetApp.desktop
             echo "Icon=/opt/BudgetApp/budget.png" >> linux-package/BudgetApp.desktop
             echo "Terminal=false" >> linux-package/BudgetApp.desktop
             echo "Type=Application" >> linux-package/BudgetApp.desktop
