@@ -40,7 +40,7 @@ Utwórz lokalne środowisko i zainstaluj zależności:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install PySide6 matplotlib pypdf pillow pyinstaller
+pip install PySide6 matplotlib pypdf pillow reportlab pyinstaller
 ```
 
 Uruchom aplikację:
