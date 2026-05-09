@@ -3,8 +3,7 @@ name: Build & Release Budget App
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*' # Uruchamia proces wyłącznie przy stworzeniu tagu v* (np. v1.8.0)
 
 permissions:
   contents: write
@@ -13,18 +12,20 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         include:
           - os: windows-latest
             artifact_name: BudgetApp_Setup.exe
+            file_to_upload: dist/BudgetApp_Setup.exe
 
           - os: macos-14
             artifact_name: BudgetApp_macos.dmg
+            file_to_upload: dist/BudgetApp_macos.dmg
 
           - os: ubuntu-22.04
             artifact_name: BudgetApp_linux.tar.gz
+            file_to_upload: dist/BudgetApp_linux.tar.gz
 
     steps:
       - name: Checkout code
@@ -44,9 +45,7 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
-
             echo "Building Windows version..."
-
             python -m PyInstaller --noconfirm --windowed \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
@@ -55,19 +54,14 @@ jobs:
               budget-app.py
 
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-
             mkdir -p dist
-
             mv user_setup/BudgetApp_Setup.exe dist/BudgetApp_Setup.exe
-
             rm -rf dist/budget-app/
             rm -f dist/budget-app.exe
             rm -f dist/budget-app-windows.exe
 
           elif [ "${{ matrix.os }}" == "macos-14" ]; then
-
             echo "Building macOS version..."
-
             python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
@@ -84,9 +78,7 @@ jobs:
               dist/BudgetApp_macos.dmg
 
           else
-
             echo "Building Linux version..."
-
             python -m PyInstaller --noconfirm --onedir --windowed \
               --add-data "budget.png:." \
               --icon "budget.png" \
@@ -94,33 +86,53 @@ jobs:
               budget-app.py
 
             mkdir -p linux-package
-
             cp -r dist/BudgetApp linux-package/
             cp budget.png linux-package/
 
             cat > linux-package/BudgetApp.desktop <<EOF
-[Desktop Entry]
-Name=BudgetApp
-Exec=BudgetApp/BudgetApp
-Icon=budget
-Type=Application
-Categories=Office;
-Terminal=false
-EOF
+            [Desktop Entry]
+            Name=BudgetApp
+            Exec=BudgetApp/BudgetApp
+            Icon=budget
+            Type=Application
+            Categories=Office;
+            Terminal=false
+            EOF
 
             tar -czf dist/BudgetApp_linux.tar.gz linux-package
-
           fi
 
-      - name: Create Release and Upload
+      # Przesyłamy zbudowany plik do pamięci podręcznej workflow
+      - name: Upload built artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.file_to_upload }}
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Pobieramy wszystkie 3 paczki zbudowane w poprzednim kroku
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release/
+          merge-multiple: true
+
+      # Tworzymy jeden zbiorczy Release na GitHubie ze wszystkimi plikami
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            dist/BudgetApp_Setup.exe
-            dist/BudgetApp_macos.dmg
-            dist/BudgetApp_linux.tar.gz
-
+            dist-release/BudgetApp_Setup.exe
+            dist-release/BudgetApp_macos.dmg
+            dist-release/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
             - Dodano build dla Linux
