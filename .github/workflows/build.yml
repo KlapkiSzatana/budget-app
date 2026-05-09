@@ -62,12 +62,14 @@ jobs:
             rm -f dist/budget-app-windows.exe
 
           elif [ "${{ matrix.os }}" == "ubuntu-22.04" ]; then
-            # 4. Dla Linuxa: budowanie w trybie --onedir z kompletnym zebraniem reportlab
+            # 1. Instalacja wymaganej biblioteki przez pip w środowisku runnera
+            python -m pip install reportlab
+
+            # 2. Budowanie w trybie --onedir z kompletnym zebraniem zainstalowanej biblioteki
             python -m PyInstaller --noconfirm --onedir --windowed \
               --collect-all reportlab \
               --add-data "budget.png:." \
               --icon "budget.png" \
-              --name "BudgetApp" \
               --name "budget-app" \
               budget-app.py
 
