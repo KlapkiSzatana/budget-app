@@ -1199,10 +1199,10 @@ class BudgetApp(QMainWindow):
 
     def preview_attachment(self, tid):
         from config import _
+        import tempfile
         import os
+        import subprocess
         from PySide6.QtWidgets import QMessageBox
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
 
         data = self.db.get_attachment(tid)
         if not data:
@@ -1218,35 +1218,25 @@ class BudgetApp(QMainWindow):
             suffix = ".jpg"
 
         try:
-            # 1. Określamy bezpieczną ścieżkę w katalogu domowym (~/.cache/budget_app_temp/)
-            #    Dzięki temu Flatpaki i Snapy bez problemu odczytają ten plik.
-            if os.name == 'nt':
-                import tempfile
-                target_dir = tempfile.gettempdir()
-            else:
-                target_dir = os.path.expanduser("~/.cache/budget_app_temp")
-                os.makedirs(target_dir, exist_ok=True)
+            # Tworzymy plik tymczasowy w standardowym /tmp/
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp_file.write(data)
+            tmp_path = tmp_file.name
+            tmp_file.close()
 
-            import uuid
-            tmp_path = os.path.join(target_dir, f"zalacznik_{uuid.uuid4().hex[:8]}{suffix}")
-
-            # 2. Zapisujemy plik
-            with open(tmp_path, "wb") as f:
-                f.write(data)
-
-            # 3. Nadajemy uprawnienia odczytu dla Linuxa
-            if os.name != 'nt':
-                try:
-                    os.chmod(tmp_path, 0o644)
-                except Exception as perm_err:
-                    print(f"Nie udało się zmienić uprawnień: {perm_err}")
-
-            # 4. Otwieranie systemowe
+            # Otwieranie systemowe
             if os.name == 'nt': # Windows (nt)
                 os.startfile(tmp_path)
             else: # Linux / Arch
-                file_url = QUrl.fromLocalFile(tmp_path)
-                QDesktopServices.openUrl(file_url)
+                # --- KLUCZOWY FIX DLA PYINSTALLERA ---
+                # Tworzymy kopię środowiska systemowego i usuwamy z niej ścieżki PyInstallera
+                env = dict(os.environ)
+                env.pop('LD_LIBRARY_PATH', None)
+                env.pop('QT_PLUGIN_PATH', None)
+                env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
+
+                # Odpalamy xdg-open z czystym środowiskiem systemowym
+                subprocess.Popen(['xdg-open', tmp_path], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         except Exception as e:
             QMessageBox.warning(self, _("Błąd"), _("Nie udało się otworzyć załącznika: {}").format(e))

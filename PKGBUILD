@@ -19,13 +19,13 @@ source=("budget-app.py"
         "budget.png")
 
 # Sumy kontrolne wygenerujesz potem komendą updpkgsums
-sha256sums=('11dcf2a701afef9fdf958befa078994c59cbb82b0b990f25fadaa0527c628978'
+sha256sums=('eab9b1c292cc54ceac9c1757d19751742682495fa3d23739ec165e7087b37f67'
             'b9679f943374be24538e5a8bfc01b9cdf5dc4d215ce0abd8d4f1b412b77ecc04'
             '1e5813156932d4267e3a6fd668507bc76f7e78ebba98ac83d7a624a4ef1cb862'
             '0a8514710472cb9fc2a713991c5d31831dd1fd5237dce0fb9fdb17cd4b955459'
             'defcf0391c6b5519c98cc96644d5dc847dba1334dfaab44c4547a94eb61288ce'
             '51bb7e0156d6803d095b04a9ee53a435fd0215e2a41187dbb5e63b51edfda896'
-            'da8836b35871490762990afbfbb450258c83505f99b8c1a8c54bcc116b615f0a'
+            '801ef906322352879e06b7aafcc810e9ea3919d99e52d94f1c924cc9d872b1b0'
             'f8e73616b675620be4c8d93d1c942502fd6932ca9c01ebf6ffe7051fc61c32f6')
 
 package() {

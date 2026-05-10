@@ -335,9 +335,9 @@ class ShoppingListDialog(QDialog):
 
     def print_list(self):
         from reports import ShoppingPDFGenerator, PDF_FILES_TO_CLEAN
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
         import os
+        import subprocess
+        import sys
 
         self._ensure_list_exists()
         items = []
@@ -347,14 +347,7 @@ class ShoppingListDialog(QDialog):
             qty = self.table.item(row, 3).text()
             items.append((prod, qty, store))
 
-        # --- FIX: Zapisujemy w katalogu domowym zamiast w zablokowanym /tmp/ ---
-        if os.name == 'nt':
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-        else:
-            temp_dir = os.path.expanduser("~/.cache/budget_app_temp")
-            os.makedirs(temp_dir, exist_ok=True)
-
+        temp_dir = tempfile.gettempdir()
         timestamp = datetime.now().strftime("%H%M%S")
         safe_name = self.name_edit.text().replace("/", "_").replace(" ", "_")
         pdf_path = os.path.join(temp_dir, f"zakupy_{safe_name}_{timestamp}.pdf")
@@ -365,20 +358,18 @@ class ShoppingListDialog(QDialog):
             PDF_FILES_TO_CLEAN.append(pdf_path)
             self._force_status_update('closed')
 
-            # --- Nadajemy uprawnienia odczytu dla Linuxa ---
-            if os.name != 'nt':
-                try:
-                    os.chmod(pdf_path, 0o644)
-                except Exception as perm_err:
-                    print(f"Nie udało się zmienić uprawnień: {perm_err}")
-
             # --- BEZPIECZNE SYSTEMOWE OTWIERANIE PLIKU ---
             if os.name == 'nt': # Windows (nt)
                 os.startfile(pdf_path)
             else:
-                # Otwieramy przez QDesktopServices z bezpiecznej lokalizacji domowej
-                file_url = QUrl.fromLocalFile(pdf_path)
-                QDesktopServices.openUrl(file_url)
+                # --- KLUCZOWY FIX DLA PYINSTALLERA ---
+                # Czyścimy środowisko binarne przed uruchomieniem xdg-open
+                env = dict(os.environ)
+                env.pop('LD_LIBRARY_PATH', None)
+                env.pop('QT_PLUGIN_PATH', None)
+                env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
+
+                subprocess.Popen(['xdg-open', pdf_path], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
             self.accept()
         except Exception as e:
