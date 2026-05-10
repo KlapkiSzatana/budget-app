@@ -6,8 +6,9 @@
 | #002 | Etykieta Oszczędności (ten msc): błędnie podaje wartości | ⏳ W trakcie |
 | #003 | Nie można dodać wpłaty do celu | ⏳ W trakcie |
 | #004 | Migracja oszczędności na cele nie działa | ⏳ W trakcie |
-| #005 | Lista Zakupów nie generuje pdf | ⏳ Naprawiany |
-| #006 | "Pokaż załącznik" nie pokazuje załącznika (Linux bin) | ⏳ Naprawiany |
+| #005 | Lista Zakupów nie generuje pdf | ✅ Naprawiony |
+| #006 | "Pokaż załącznik" nie pokazuje załącznika (Linux bin) | ✅ Naprawiony |
+| #007 | Przewodnik generuje błąd krytyczny | ✅ Naprawiony |
 
 ---
 
