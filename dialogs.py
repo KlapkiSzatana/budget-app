@@ -5,6 +5,10 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QTableWidget, QTableWidgetItem, QHeaderView)
 from PySide6.QtCore import Qt, QDate
 from config import _, CASH_SAVINGS_NAME, MONTH_NAME
+try:
+    import shiboken
+except ImportError:
+    shiboken = None
 
 class ProcessingDialog(QDialog):
     def __init__(self, parent=None, title=None, label_text=None):
@@ -2102,19 +2106,31 @@ class AppGuide:
         """Całkowite zatrzymanie prezentacji."""
         if self.bubble:
             try:
-                from shiboken import isValid
-                if isValid(self.bubble):
-                    if hasattr(self.bubble, 'prog_timer') and isValid(self.bubble.prog_timer):
+                # 1. Próba użycia oficjalnego shiboken do walidacji obiektów C++
+                if shiboken is not None:
+                    if shiboken.isValid(self.bubble):
+                        if hasattr(self.bubble, 'prog_timer') and shiboken.isValid(self.bubble.prog_timer):
+                            self.bubble.prog_timer.stop() # Zatrzymujemy pasek
+
+                        self.bubble.close()
+                        self.bubble.deleteLater()
+                # 2. Awaryjny fallback, gdyby shiboken nie był załadowany
+                else:
+                    self.bubble.parent() # Wywoła RuntimeError jeśli obiekt jest martwy
+                    if hasattr(self.bubble, 'prog_timer'):
+                        self.bubble.prog_timer.parent()
                         self.bubble.prog_timer.stop()
 
                     self.bubble.close()
                     self.bubble.deleteLater()
+
             except (RuntimeError, AttributeError, NameError):
+                # Cichy powrót, jeśli C++ usunął obiekty z pamięci przed nami
                 pass
             finally:
                 self.bubble = None
 
-        self.current_step = 999
+        self.current_step = 999 # Blokujemy dalsze kroki
 
 class AccountHistoryDialog(QDialog):
     def __init__(self, parent, db, account_id, account_name):

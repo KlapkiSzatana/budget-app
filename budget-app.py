@@ -19,6 +19,10 @@ basedir = os.path.dirname(__file__)
 icon_path = os.path.join(basedir, "budget.png")
 
 from PySide6.QtCore import Signal # Upewnij się, że masz Signal w importach na górze
+try:
+    import shiboken
+except ImportError:
+    shiboken = None
 
 class ClickableDebtLabel(QLabel):
     clicked = Signal(int, str)  # Emituje: id_dlugu, typ ('lia' lub 'deb')
