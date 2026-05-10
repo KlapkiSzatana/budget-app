@@ -337,7 +337,7 @@ class ShoppingListDialog(QDialog):
         from reports import ShoppingPDFGenerator, PDF_FILES_TO_CLEAN
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
-        import sys
+        import os
 
         self._ensure_list_exists()
         items = []
@@ -358,10 +358,18 @@ class ShoppingListDialog(QDialog):
             PDF_FILES_TO_CLEAN.append(pdf_path)
             self._force_status_update('closed')
 
+            # --- KLUCZOWY FIX DLA LINUX/ARCH: Nadajemy uprawnienia odczytu dla innych aplikacji ---
+            if os.name != 'nt':
+                try:
+                    os.chmod(pdf_path, 0o644) # Każdy systemowy PDF Viewer bez problemu go teraz odczyta
+                except Exception as perm_err:
+                    print(f"Nie udało się zmienić uprawnień pliku zakupów: {perm_err}")
+
             # --- BEZPIECZNE SYSTEMOWE OTWIERANIE PLIKU ---
-            if os.name == 'nt':
+            if os.name == 'nt': # Spójne, czyste sprawdzenie Windowsa
                 os.startfile(pdf_path)
             else:
+                # Na Linux/Arch używamy QDesktopServices, co rozwiązuje problem z uprawnieniami w /tmp/
                 file_url = QUrl.fromLocalFile(pdf_path)
                 QDesktopServices.openUrl(file_url)
 

@@ -1219,18 +1219,23 @@ class BudgetApp(QMainWindow):
             suffix = ".jpg"
 
         try:
-            # 1. Zapisujemy dane do pliku tymczasowego i JAWNIE go zamykamy,
-            #    ale dzięki delete=False plik zostaje bezpiecznie na dysku w /tmp/
+            # 1. Zapisujemy dane do pliku tymczasowego
             tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             tmp_file.write(data)
             tmp_path = tmp_file.name
-            tmp_file.close() # Zamykamy uchwyt pliku, żeby system mógł go swobodnie odczytać
+            tmp_file.close() # Zamykamy uchwyt, żeby zapisać plik na dysku
 
-            # 2. Otwieranie systemowe
-            if hasattr(os, 'startfile'): # Windows
+            # 2. KLUCZOWY FIX DLA LINUX/ARCH: Nadajemy uprawnienia odczytu dla innych aplikacji
+            if os.name != 'nt':
+                try:
+                    os.chmod(tmp_path, 0o644) # Odczyt dla wszystkich (naprawia błąd uprawnień w /tmp)
+                except Exception as perm_err:
+                    print(f"Nie udało się zmienić uprawnień pliku: {perm_err}")
+
+            # 3. Otwieranie systemowe
+            if os.name == 'nt': # Windows (nt)
                 os.startfile(tmp_path)
             else: # Linux / Arch
-                # Używamy bezpiecznego, natywnego mechanizmu PySide6
                 file_url = QUrl.fromLocalFile(tmp_path)
                 QDesktopServices.openUrl(file_url)
 
