@@ -21,4 +21,4 @@
 
 ---
 
-> Ostatnia aktualizacja: `09.05.2026`
+> Ostatnia aktualizacja: `10.05.2026`
