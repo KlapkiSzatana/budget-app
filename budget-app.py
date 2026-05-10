@@ -1202,6 +1202,8 @@ class BudgetApp(QMainWindow):
         import tempfile
         import os
         from PySide6.QtWidgets import QMessageBox
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
 
         data = self.db.get_attachment(tid)
         if not data:
@@ -1217,16 +1219,20 @@ class BudgetApp(QMainWindow):
             suffix = ".jpg"
 
         try:
-            # Tworzymy plik tymczasowy (delete=False, żeby systemowa apka zdążyła go odczytać)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(data)
-                tmp_path = tmp.name
+            # 1. Zapisujemy dane do pliku tymczasowego i JAWNIE go zamykamy,
+            #    ale dzięki delete=False plik zostaje bezpiecznie na dysku w /tmp/
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp_file.write(data)
+            tmp_path = tmp_file.name
+            tmp_file.close() # Zamykamy uchwyt pliku, żeby system mógł go swobodnie odczytać
 
-            # Otwieranie systemowe
+            # 2. Otwieranie systemowe
             if hasattr(os, 'startfile'): # Windows
                 os.startfile(tmp_path)
             else: # Linux / Arch
-                os.system(f'xdg-open "{tmp_path}" &')
+                # Używamy bezpiecznego, natywnego mechanizmu PySide6
+                file_url = QUrl.fromLocalFile(tmp_path)
+                QDesktopServices.openUrl(file_url)
 
         except Exception as e:
             QMessageBox.warning(self, _("Błąd"), _("Nie udało się otworzyć załącznika: {}").format(e))

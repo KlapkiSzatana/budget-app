@@ -335,6 +335,10 @@ class ShoppingListDialog(QDialog):
 
     def print_list(self):
         from reports import ShoppingPDFGenerator, PDF_FILES_TO_CLEAN
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        import sys
+
         self._ensure_list_exists()
         items = []
         for row in range(self.table.rowCount()):
@@ -353,8 +357,14 @@ class ShoppingListDialog(QDialog):
             gen.generate(pdf_path, self.name_edit.text(), items)
             PDF_FILES_TO_CLEAN.append(pdf_path)
             self._force_status_update('closed')
-            if sys.platform == "win32": os.startfile(pdf_path)
-            else: subprocess.call(['xdg-open', pdf_path])
+
+            # --- BEZPIECZNE SYSTEMOWE OTWIERANIE PLIKU ---
+            if os.name == 'nt':
+                os.startfile(pdf_path)
+            else:
+                file_url = QUrl.fromLocalFile(pdf_path)
+                QDesktopServices.openUrl(file_url)
+
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, _("Błąd"), _("Nie udało się wygenerować PDF:\n{}").format(str(e)))

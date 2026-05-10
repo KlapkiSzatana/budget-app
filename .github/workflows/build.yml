@@ -132,6 +132,5 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dodano stabilny build dla Linux wraz z install i uninstall
-            - Dodano menu aplikacji
-            - Dodano skróty klawiaturowe
+            - Poprawa w Pokaż Załącznik
+            - Poprawa PDF w Lista Zakupów

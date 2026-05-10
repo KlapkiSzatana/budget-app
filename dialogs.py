@@ -2101,11 +2101,20 @@ class AppGuide:
     def stop_guide(self):
         """Całkowite zatrzymanie prezentacji."""
         if self.bubble:
-            self.bubble.prog_timer.stop() # Zatrzymujemy pasek
-            self.bubble.close()
-            self.bubble.deleteLater()
-            self.bubble = None
-        self.current_step = 999 # Blokujemy dalsze kroki
+            try:
+                from shiboken import isValid
+                if isValid(self.bubble):
+                    if hasattr(self.bubble, 'prog_timer') and isValid(self.bubble.prog_timer):
+                        self.bubble.prog_timer.stop()
+
+                    self.bubble.close()
+                    self.bubble.deleteLater()
+            except (RuntimeError, AttributeError, NameError):
+                pass
+            finally:
+                self.bubble = None
+
+        self.current_step = 999
 
 class AccountHistoryDialog(QDialog):
     def __init__(self, parent, db, account_id, account_name):
