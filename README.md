@@ -6,7 +6,6 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 - [Wymagania (Zależności)](#wymagania-zależności)
 - [Budowa ze źródeł](#budowa-ze-źródeł)
 - [Instalacja (Arch Linux i pochodne)](#instalacja-arch-linux-i-pochodne)
-- [Instalacja (Arch z AUR)](#instalacja-arch-z-aur)
 - [Uruchamianie](#uruchamianie)
 - [Odinstalowanie](#odinstalowanie)
 - [Wersja gotowa dla Linux](#dostępna-również-gotowa-wersja-bin-dla-linux)
@@ -34,7 +33,7 @@ Pełna instrukcja budowy lokalnej wersji developerskiej, binarki Linux oraz pacz
 ## Znane Błędy!
 Lista znanych błędów znajduje się w [ZNANE_BŁĘDY.md](ZNANE_BŁĘDY.md).
 
-## 🐧 Instalacja (Arch Linux i pochodne)
+## Instalacja (Arch Linux i pochodne)
 
 Aplikacja jest dostępna w AUR w dwóch wersjach.  
 Wybierz jedną z poniższych metod:
@@ -108,7 +107,7 @@ makepkg -si
 
 ---
 
-## 🚀 Uruchamianie
+## Uruchamianie
 
 Po instalacji (niezależnie od wybranej opcji) aplikację uruchamiasz wpisując:
 
@@ -120,7 +119,7 @@ Możesz także uruchomić ją z menu aplikacji swojego środowiska graficznego.
 
 ---
 
-## 🗑️ Odinstalowanie
+## Odinstalowanie
 
 Aby całkowicie usunąć aplikację z systemu:
 
