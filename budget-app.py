@@ -1199,7 +1199,6 @@ class BudgetApp(QMainWindow):
 
     def preview_attachment(self, tid):
         from config import _
-        import tempfile
         import os
         from PySide6.QtWidgets import QMessageBox
         from PySide6.QtCore import QUrl
@@ -1219,20 +1218,30 @@ class BudgetApp(QMainWindow):
             suffix = ".jpg"
 
         try:
-            # 1. Zapisujemy dane do pliku tymczasowego
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-            tmp_file.write(data)
-            tmp_path = tmp_file.name
-            tmp_file.close() # Zamykamy uchwyt, żeby zapisać plik na dysku
+            # 1. Określamy bezpieczną ścieżkę w katalogu domowym (~/.cache/budget_app_temp/)
+            #    Dzięki temu Flatpaki i Snapy bez problemu odczytają ten plik.
+            if os.name == 'nt':
+                import tempfile
+                target_dir = tempfile.gettempdir()
+            else:
+                target_dir = os.path.expanduser("~/.cache/budget_app_temp")
+                os.makedirs(target_dir, exist_ok=True)
 
-            # 2. KLUCZOWY FIX DLA LINUX/ARCH: Nadajemy uprawnienia odczytu dla innych aplikacji
+            import uuid
+            tmp_path = os.path.join(target_dir, f"zalacznik_{uuid.uuid4().hex[:8]}{suffix}")
+
+            # 2. Zapisujemy plik
+            with open(tmp_path, "wb") as f:
+                f.write(data)
+
+            # 3. Nadajemy uprawnienia odczytu dla Linuxa
             if os.name != 'nt':
                 try:
-                    os.chmod(tmp_path, 0o644) # Odczyt dla wszystkich (naprawia błąd uprawnień w /tmp)
+                    os.chmod(tmp_path, 0o644)
                 except Exception as perm_err:
-                    print(f"Nie udało się zmienić uprawnień pliku: {perm_err}")
+                    print(f"Nie udało się zmienić uprawnień: {perm_err}")
 
-            # 3. Otwieranie systemowe
+            # 4. Otwieranie systemowe
             if os.name == 'nt': # Windows (nt)
                 os.startfile(tmp_path)
             else: # Linux / Arch

@@ -347,7 +347,14 @@ class ShoppingListDialog(QDialog):
             qty = self.table.item(row, 3).text()
             items.append((prod, qty, store))
 
-        temp_dir = tempfile.gettempdir()
+        # --- FIX: Zapisujemy w katalogu domowym zamiast w zablokowanym /tmp/ ---
+        if os.name == 'nt':
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+        else:
+            temp_dir = os.path.expanduser("~/.cache/budget_app_temp")
+            os.makedirs(temp_dir, exist_ok=True)
+
         timestamp = datetime.now().strftime("%H%M%S")
         safe_name = self.name_edit.text().replace("/", "_").replace(" ", "_")
         pdf_path = os.path.join(temp_dir, f"zakupy_{safe_name}_{timestamp}.pdf")
@@ -358,18 +365,18 @@ class ShoppingListDialog(QDialog):
             PDF_FILES_TO_CLEAN.append(pdf_path)
             self._force_status_update('closed')
 
-            # --- KLUCZOWY FIX DLA LINUX/ARCH: Nadajemy uprawnienia odczytu dla innych aplikacji ---
+            # --- Nadajemy uprawnienia odczytu dla Linuxa ---
             if os.name != 'nt':
                 try:
-                    os.chmod(pdf_path, 0o644) # Każdy systemowy PDF Viewer bez problemu go teraz odczyta
+                    os.chmod(pdf_path, 0o644)
                 except Exception as perm_err:
-                    print(f"Nie udało się zmienić uprawnień pliku zakupów: {perm_err}")
+                    print(f"Nie udało się zmienić uprawnień: {perm_err}")
 
             # --- BEZPIECZNE SYSTEMOWE OTWIERANIE PLIKU ---
-            if os.name == 'nt': # Spójne, czyste sprawdzenie Windowsa
+            if os.name == 'nt': # Windows (nt)
                 os.startfile(pdf_path)
             else:
-                # Na Linux/Arch używamy QDesktopServices, co rozwiązuje problem z uprawnieniami w /tmp/
+                # Otwieramy przez QDesktopServices z bezpiecznej lokalizacji domowej
                 file_url = QUrl.fromLocalFile(pdf_path)
                 QDesktopServices.openUrl(file_url)
 
