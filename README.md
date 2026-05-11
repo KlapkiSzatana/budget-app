@@ -5,6 +5,7 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 - [Funkcje](#funkcje)
 - [Wymagania (Zależności)](#wymagania-zależności)
 - [Budowa ze źródeł](#budowa-ze-źródeł)
+- [Podpis Cyfrowy](#instancje-bez-podpisu-cyfrowego)
 - [Instalacja (Arch Linux i pochodne)](#instalacja-arch-linux-i-pochodne)
 - [Uruchamianie](#uruchamianie)
 - [Odinstalowanie](#odinstalowanie)
@@ -32,6 +33,12 @@ Pełna instrukcja budowy lokalnej wersji developerskiej, binarki Linux oraz pacz
 
 ## Znane Błędy!
 Lista znanych błędów znajduje się w [ZNANE_BŁĘDY.md](ZNANE_BŁĘDY.md).
+
+## Instancje bez podpisu cyfrowego
+
+Gotowe instalatory udostępniane w sekcji **Releases** nie są podpisane komercyjnym certyfikatem deweloperskim (ze względu na wysokie koszty takich certyfikatów). 
+
+Jeśli Twój system (Windows Defender / SmartScreen lub macOS Gatekeeper) zablokuje uruchomienie programu, wybierz opcję zezwalającą na uruchomienie aplikacji (np. "Uruchom mimo to"). Jeśli wolisz uniknąć tych komunikatów, możesz zawsze pobrać kod źródłowy i uruchomić aplikację bezpośrednio przez Pythona: `python budget-app.py`.
 
 ## Instalacja (Arch Linux i pochodne)
 
