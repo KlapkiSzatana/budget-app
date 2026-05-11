@@ -1274,12 +1274,22 @@ class BudgetApp(QMainWindow):
         default_path = os.path.join(os.path.expanduser("~"), suggested_filename)
 
         # Wyświetlenie okna zapisu z predefiniowanym filtrem
-        path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            _("Zapisz potwierdzenie"),
-            default_path,
-            file_filter
-        )
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Zapisz potwierdzenie"))
+        dialog.setDirectory(os.path.dirname(default_path))
+        dialog.selectFile(os.path.basename(default_path))
+        dialog.setNameFilters([file_filter])
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setAcceptMode(QFileDialog.AcceptSave) # Tryb zapisu pliku
+
+        # Wymuszamy natywne okno systemowe zapisu pliku
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
 
         if path:
             # Zabezpieczenie: jeśli użytkownik usunął rozszerzenie w nazwie pliku, dodajemy je
@@ -2689,12 +2699,26 @@ class BudgetApp(QMainWindow):
             QMessageBox.warning(self, _("Błąd"), _("Proszę najpierw zaznaczyć transakcje w tabeli."))
             return
 
-        path, filter_name = QFileDialog.getSaveFileName(
-            self, _("Zapisz jako PDF"),
-            os.path.expanduser("~/potwierdzenie_transakcji.pdf"),
-            "PDF Files (*.pdf)",
-            options=QFileDialog.DontConfirmOverwrite
-        )
+        default_pdf_path = os.path.expanduser("~/potwierdzenie_transakcji.pdf")
+
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Zapisz jako PDF"))
+        dialog.setDirectory(os.path.dirname(default_pdf_path))
+        dialog.selectFile(os.path.basename(default_pdf_path))
+        dialog.setNameFilters(["PDF Files (*.pdf)"])
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setAcceptMode(QFileDialog.AcceptSave) # Tryb zapisu pliku
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+        # Przenosimy opcję braku systemowego potwierdzenia nadpisania (bo masz poniżej własny ładny dialog)
+        dialog.setOption(QFileDialog.DontConfirmOverwrite, True)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
 
         if not path:
             return
