@@ -3,7 +3,7 @@ import os
 import gettext
 
 # --- STAŁE APLIKACJI ---
-WERSJA = "1.6.1"
+WERSJA = "1.6.2"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"

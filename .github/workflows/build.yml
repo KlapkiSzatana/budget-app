@@ -132,5 +132,4 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Poprawa w Pokaż Załącznik
-            - Poprawa PDF w Lista Zakupów
+            - Poprawa okna dialogowego wyboru pliku na systemowe

@@ -2,14 +2,13 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QComboBox, QPushButton, QDateEdit, QGroupBox, QFormLayout,
                                QDialogButtonBox, QRadioButton, QButtonGroup,
                                QProgressBar, QTextEdit, QSpinBox, QFrame, QWidget,
-                               QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QTableWidget, QTableWidgetItem, QHeaderView)
+                               QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog)
 from PySide6.QtCore import Qt, QDate
 from config import _, CASH_SAVINGS_NAME, MONTH_NAME
 try:
     import shiboken
 except ImportError:
     shiboken = None
-
 class ProcessingDialog(QDialog):
     def __init__(self, parent=None, title=None, label_text=None):
         super().__init__(parent)
@@ -149,9 +148,22 @@ class BackupDialog(QDialog):
         from PySide6.QtWidgets import QFileDialog, QMessageBox, QApplication
 
         path = self.path_edit.text()
-        #f, _ext = QFileDialog.getOpenFileName(self, _("Wybierz plik"), path, "Backup (*.bak)")
-        # W metodzie restore_now zmień linijkę filtru:
-        f, _ext = QFileDialog.getOpenFileName(self, _("Wybierz plik"), path, "Backup (*.zip)")
+        # --- POPRAWIONE NA W PEŁNI NATYWNE OKNO SYSTEMOWE ---
+
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz plik"))
+        dialog.setDirectory(path)
+        dialog.setNameFilters(["Backup (*.zip)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy użycie natywnego menedżera plików systemu (brak brzydkiego okna Qt)
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        f = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                f = selected_files[0]
 
         if f and QMessageBox.Yes == QMessageBox.question(
             self, _("Potwierdź"), _("Przywrócenie nadpisze obecne dane. Kontynuować?")
@@ -371,15 +383,25 @@ class IncomeDialog(QDialog):
         l.addRow(bb)
 
     def select_attachment(self):
-        from PySide6.QtWidgets import QFileDialog
         from config import _
 
-        path, file_ext = QFileDialog.getOpenFileName(
-            self,
-            _("Wybierz potwierdzenie"),
-            "",
-            "Pliki (*.jpg *.png *.pdf)"
-        )
+        # --- POPRAWIONE NA W PEŁNI NATYWNE OKNO SYSTEMOWE ---
+        from PySide6.QtWidgets import QFileDialog
+
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe (szybkie odświeżanie, miniatury i podgląd PDF)
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
 
         if path:
             try:
@@ -500,12 +522,20 @@ class AddExpenseDialog(QDialog):
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
         from config import _
-        path, file_ext = QFileDialog.getOpenFileName(
-            self,
-            _("Wybierz potwierdzenie"),
-            "",
-            "Pliki (*.jpg *.png *.pdf)"
-        )
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe (szybkie odświeżanie, miniatury i podgląd PDF)
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
         if path:
             try:
                 with open(path, "rb") as f:
@@ -844,7 +874,20 @@ class AddSavingsDialog(QDialog):
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
-        path, _filter = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
         if path:
             try:
                 with open(path, "rb") as f: self.attachment_data = f.read()
@@ -1091,7 +1134,20 @@ class LiabilitiesDialog(QDialog):
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
         from config import _
-        path, file_ext = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
         if path:
             try:
                 with open(path, "rb") as f:
@@ -1272,7 +1328,20 @@ class DebtorsDialog(QDialog):
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
         from config import _
-        path, file_ext = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
         if path:
             try:
                 with open(path, "rb") as f:
@@ -1531,9 +1600,22 @@ class EditDialog(QDialog):
         from config import _
 
         # file_ext zamiast _ zapobiega błędom zasięgu
-        path, _filter = QFileDialog.getOpenFileName(
-            self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)"
-        )
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        _filter = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
+                _filter = dialog.selectedNameFilter()
 
         if path:
             try:
@@ -1887,7 +1969,22 @@ class BillPaymentConfirmDialog(QDialog):
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
-        path, _filter = QFileDialog.getOpenFileName(self, _("Wybierz potwierdzenie"), "", "Pliki (*.jpg *.png *.pdf)")
+        dialog = QFileDialog(self)
+        dialog.setWindowTitle(_("Wybierz potwierdzenie"))
+        dialog.setDirectory("")
+        dialog.setNameFilters(["Pliki (*.jpg *.png *.pdf)"])
+        dialog.setFileMode(QFileDialog.ExistingFile)
+
+        # Wymuszamy natywne okno systemowe
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+
+        path = ""
+        _filter = ""
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                path = selected_files[0]
+                _filter = dialog.selectedNameFilter()
 
         if path:
             try:
