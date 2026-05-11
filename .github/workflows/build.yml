@@ -42,7 +42,9 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
+            python -m pip install reportlab
             python -m PyInstaller --noconfirm --windowed \
+              --collect-all reportlab \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
@@ -109,8 +111,10 @@ jobs:
             tar -czf dist/BudgetApp_linux.tar.gz linux-package
 
           else
+            python -m pip install reportlab
             # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
             python -m PyInstaller --noconfirm --onedir --windowed \
+              --collect-all reportlab \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
               --icon "budget.icns" \
@@ -132,4 +136,5 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Poprawa okna dialogowego pobierz do pdf i eksportu potwierdzenia
+            - Poprawa wyświetlania skrótów kalwiaturowych w menu
+            - Windows i MacOS poprawa problemów z pdf (zapisz, otwórz)

@@ -1,23 +1,31 @@
 [Setup]
 AppName=Budżet Domowy
-AppVersion=1.6.3
-; Instalacja w AppData użytkownika w folderze Heisenberg\BudgetApp
+AppVersion=1.6.4
+AppVerName=BudgetApp 1.6.4
+AppPublisher=KlapkiSzatana
+AppPublisherURL=https://github.com/KlapkiSzatana/budget-app
+AppSupportURL=https://github.com/KlapkiSzatana/budget-app/issues
+AppUpdatesURL=https://github.com/KlapkiSzatana/budget-app/releases
+AppCopyright=© 2026 KlapkiSzatana
 DefaultDirName={userappdata}\KlapkiSzatana\BudgetApp
 DefaultGroupName=Budżet Domowy
 UninstallDisplayIcon={app}\budget-app.exe
+UninstallDisplayName=BudgetApp 1.6.4 - Zarządzanie Budżetem Domowym
 Compression=lzma
 SolidCompression=yes
 OutputDir=user_setup
 OutputBaseFilename=BudgetApp_Setup
 LicenseFile=LICENSE
 PrivilegesRequired=lowest
+VersionInfoVersion=1.6.4.0
+VersionInfoCompany=KlapkiSzatana
+VersionInfoDescription=Aplikacja do zarządzania budżetem domowym
+VersionInfoCopyright=Copyright © 2026 KlapkiSzatana
 
 [Files]
-; Kopiuje całą zawartość folderu wyjściowego PyInstallera
 Source: "dist\budget-app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-; Zmieniono na {userdesktop} oraz dodano skrót w menu Start
 Name: "{userdesktop}\Budżet Domowy"; Filename: "{app}\budget-app.exe"; Tasks: desktopicon
 Name: "{userprograms}\Budżet Domowy"; Filename: "{app}\budget-app.exe"
 
