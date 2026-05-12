@@ -35,7 +35,7 @@ Format oparty o standard:
 
 ---
 
-# [1.6.4](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.4) - 2026-05-11
+# [1.6.4](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.4) - 2026-05-10
 
 ## 🔄 Changed
 - Poprawiono wyświetlanie skrótów klawiaturowych w menu aplikacji
@@ -60,7 +60,7 @@ Format oparty o standard:
 
 ---
 
-# [1.6.2](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.2) - 2026-05-09
+# [1.6.2](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.2) - 2026-05-10
 
 ## 🔄 Changed
 - Zmieniono okno dialogowe wyboru pliku na natywne/systemowe
@@ -72,7 +72,7 @@ Format oparty o standard:
 
 ---
 
-# [1.6.1](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.1) - 2026-05-08
+# [1.6.1](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.1) - 2026-05-09
 
 ## 🛠 Fixed
 - Poprawiono działanie funkcji „Pokaż Załącznik”
@@ -84,7 +84,7 @@ Format oparty o standard:
 
 ---
 
-# [1.6.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.0) - 2026-05-07
+# [1.6.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v1.6.0) - 2026-05-08
 
 ## ✨ Added
 - Dodano stabilny build aplikacji dla systemów Linux
