@@ -18,6 +18,8 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 *   **Raporty:** Wizualizacja danych.
 *   **Eksport PDF:** Generowanie zestawień do plików PDF.
 
+## [Changelog](CHANGELOG.md)
+
 ## Wymagania (Zależności)
 
 Aby aplikacja działała poprawnie na Arch Linux, wymagane są następujące pakiety:
