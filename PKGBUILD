@@ -9,7 +9,7 @@ license=('GPL-3.0')
 depends=('python' 'pyside6' 'python-matplotlib' 'python-pypdf' 'python-pillow')
 
 # Definiujemy pliki źródłowe, które będą w repozytorium
-source=("budget-app.py"
+source=("budget_app.py"
         "config.py"
         "database.py"
         "dialogs.py"
