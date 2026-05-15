@@ -49,6 +49,10 @@ jobs:
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
               --name "budget-app" \
+              --hidden-import=dialogs \
+              --hidden-import=shopping \
+              --hidden-import=reports \
+              --hidden-import=settings_dialog \
               budget-app.py
 
             # 2. Tworzenie instalatora za pomocą Inno Setup
@@ -73,6 +77,10 @@ jobs:
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
+              --hidden-import=dialogs \
+              --hidden-import=shopping \
+              --hidden-import=reports \
+              --hidden-import=settings_dialog \
               budget-app.py
 
             # USUWANIE PROBLEMATYCZNYCH BIBLIOTEK SYSTEMOWYCH
@@ -120,6 +128,10 @@ jobs:
               --icon "budget.icns" \
               --osx-bundle-identifier "com.klapkiszatana.budget-app" \
               --name "BudgetApp" \
+              --hidden-import=dialogs \
+              --hidden-import=shopping \
+              --hidden-import=reports \
+              --hidden-import=settings_dialog \
               budget-app.py
 
             # 6. Pakowanie folderu aplikacji do formatu .dmg
