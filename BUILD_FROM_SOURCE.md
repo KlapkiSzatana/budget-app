@@ -13,7 +13,7 @@ Instrukcja jest zgodna z aktualnym układem repozytorium oraz z buildem Windows/
 Do pełnej budowy potrzebujesz:
 
 - `git`
-- `python` 3.11 lub nowszy
+- `python` 3.12 lub nowszy
 - `python -m venv`
 - `pip`
 - `ruby` + `rubygems`

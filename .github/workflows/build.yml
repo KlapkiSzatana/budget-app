@@ -49,7 +49,6 @@ jobs:
             python -m PyInstaller --paths=. --noconfirm --windowed \
               --collect-all reportlab \
               --add-data "budget.png;." \
-              --add-data "dialogs.py:." \
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
               --name "budget-app" \
@@ -60,7 +59,7 @@ jobs:
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
-              budget_app.py
+              budget-app.py
 
             # 2. Tworzenie instalatora za pomocą Inno Setup
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
@@ -83,7 +82,6 @@ jobs:
               --collect-all reportlab \
               --add-data "budget.png:." \
               --icon "budget.png" \
-              --add-data "dialogs.py:." \
               --name "BudgetApp" \
               --hidden-import=config \
               --hidden-import=dialogs \
@@ -92,7 +90,7 @@ jobs:
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
-              budget_app.py
+              budget-app.py
 
             # USUWANIE PROBLEMATYCZNYCH BIBLIOTEK SYSTEMOWYCH
             # 1. Usuwamy readline (rozwiązuje błąd rl_trim_arg_from_keyseq w /bin/sh)
@@ -136,7 +134,6 @@ jobs:
               --collect-all reportlab \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
-              --add-data "dialogs.py:." \
               --icon "budget.icns" \
               --osx-bundle-identifier "com.klapkiszatana.budget-app" \
               --name "BudgetApp" \
@@ -147,7 +144,7 @@ jobs:
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
-              budget_app.py
+              budget-app.py
 
             # 6. Pakowanie folderu aplikacji do formatu .dmg
             hdiutil create -volname "BudgetApp" -srcfolder dist/BudgetApp.app -ov -format UDZO dist/BudgetApp_macos.dmg

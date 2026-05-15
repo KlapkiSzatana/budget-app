@@ -9,7 +9,7 @@ license=('GPL-3.0')
 depends=('python' 'pyside6' 'python-matplotlib' 'python-pypdf' 'python-pillow')
 
 # Definiujemy pliki źródłowe, które będą w repozytorium
-source=("budget_app.py"
+source=("budget-app.py"
         "config.py"
         "database.py"
         "dialogs.py"
@@ -24,7 +24,7 @@ source=("budget_app.py"
 sha256sums=('3e0a2d2663ed6351993ca66350132e147498a295449a2a20528e0d665696398b'
             'd8d7168291773bd06e331c30beb0c7db31310c890d190dc57a1b2d4b5ca3ba96'
             'e76c0a0c3260930af520a6764cd148c6dc05330cb73de0d05f7198324a076e5d'
-            '335d61f7ac53e6a874109f068b74e6c35febcd62303e6b557a0de63c4e04fd75'
+            'cc906f4dac91b8ec09118ab8e89cfbcb0b055f04a087a1b576dfbac6837b3c67'
             'b672692d70a0fead5414ae80cef3691c53b71aabdea351d771f88d6f7284b199'
             'c13891a37d50dc650e7a920aaf0239454ca324c4d5ae878c0868f0b038023b08'
             '923604e3e10c602c6d949b908fe5e2c07064e6673c38c1e3e9c0255dbb819445'
