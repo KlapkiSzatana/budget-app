@@ -9,13 +9,13 @@ import subprocess
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
                                QGroupBox, QAbstractItemView, QWidget, QListWidget,
-                               QListWidgetItem, QComboBox, QMessageBox) # Dodano QListWidgetItem
+                               QListWidgetItem, QComboBox, QMessageBox)
 from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtGui import QColor, QFont, QDesktopServices
 
 from config import _, DAYS_PL, MONTH_NAME
 
-# Wspólny styl dla przycisków
+
 BASE_BTN_STYLE = """
     QPushButton {
         font-size: 11px; font-weight: bold; padding: 2px 12px; border-radius: 6px;
@@ -34,7 +34,7 @@ class ShoppingHistoryDialog(QDialog):
 
         main_layout = QHBoxLayout(self)
 
-        # LEWA STRONA
+
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -52,27 +52,27 @@ class ShoppingHistoryDialog(QDialog):
 
         btn_layout = QHBoxLayout()
 
-        # Przyciski akcji
+
         self.btn_open = QPushButton(_("Otwórz / Edytuj"))
         self.btn_open.setStyleSheet(BASE_BTN_STYLE + """
             QPushButton { color: #27ae60; border-color: #2ecc71; }
             QPushButton:hover { background-color: #27ae60; color: white; }
         """)
-        self.btn_open.clicked.connect(self.open_selected) # PODPIĘTO
+        self.btn_open.clicked.connect(self.open_selected)
 
         self.btn_close_list = QPushButton(_("Zamknij (status)"))
         self.btn_close_list.setStyleSheet(BASE_BTN_STYLE + """
             QPushButton { color: #d35400; border-color: #e67e22; }
             QPushButton:hover { background-color: #d35400; color: white; }
         """)
-        self.btn_close_list.clicked.connect(self.close_selected_list) # PODPIĘTO
+        self.btn_close_list.clicked.connect(self.close_selected_list)
 
         self.btn_del = QPushButton(_("Usuń"))
         self.btn_del.setStyleSheet(BASE_BTN_STYLE + """
             QPushButton { color: #c0392b; border-color: #e74c3c; }
             QPushButton:hover { background-color: #c0392b; color: white; }
         """)
-        self.btn_del.clicked.connect(self.delete_selected) # PODPIĘTO
+        self.btn_del.clicked.connect(self.delete_selected)
 
         btn_layout.addWidget(self.btn_open)
         btn_layout.addWidget(self.btn_close_list)
@@ -80,7 +80,7 @@ class ShoppingHistoryDialog(QDialog):
         left_layout.addLayout(btn_layout)
         main_layout.addWidget(left_widget, stretch=3)
 
-        # PRAWA STRONA (Podgląd)
+
         right_group = QGroupBox(_("Podgląd produktów"))
         right_layout = QVBoxLayout(right_group)
         self.list_preview = QListWidget()
@@ -163,7 +163,7 @@ class ShoppingListDialog(QDialog):
 
         self.layout = QVBoxLayout(self)
 
-        # --- GÓRA ---
+
         h_top = QHBoxLayout()
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText(_("Nazwa listy"))
@@ -182,7 +182,7 @@ class ShoppingListDialog(QDialog):
         h_top.addWidget(self.name_edit)
         self.layout.addLayout(h_top)
 
-        # --- DODAWANIE PRODUKTU ---
+
         gb_add = QGroupBox(_("Dodaj produkt"))
         h_add = QHBoxLayout()
 
@@ -217,7 +217,7 @@ class ShoppingListDialog(QDialog):
         gb_add.setLayout(h_add)
         self.layout.addWidget(gb_add)
 
-        # --- TABELA PRODUKTÓW ---
+
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels([_("ID"), _("Sklep"), _("Produkt"), _("Ilość")])
@@ -228,7 +228,7 @@ class ShoppingListDialog(QDialog):
         self.table.setStyleSheet("QTableWidget { border: 1px solid palette(mid); }")
         self.layout.addWidget(self.table)
 
-        # --- MENU DOLNE ---
+
         self.layout.addWidget(QLabel(f"<i>{_('--- Opcje ---')}</i>"))
         h_actions = QHBoxLayout()
 
@@ -358,12 +358,12 @@ class ShoppingListDialog(QDialog):
             PDF_FILES_TO_CLEAN.append(pdf_path)
             self._force_status_update('closed')
 
-            # --- BEZPIECZNE SYSTEMOWE OTWIERANIE PLIKU ---
-            if os.name == 'nt': # Windows (nt)
+
+            if os.name == 'nt':
                 os.startfile(pdf_path)
             else:
-                # --- KLUCZOWY FIX DLA PYINSTALLERA ---
-                # Czyścimy środowisko binarne przed uruchomieniem xdg-open
+
+
                 env = dict(os.environ)
                 env.pop('LD_LIBRARY_PATH', None)
                 env.pop('QT_PLUGIN_PATH', None)

@@ -18,14 +18,14 @@ from config import save_table_widths, load_table_widths
 basedir = os.path.dirname(__file__)
 icon_path = os.path.join(basedir, "budget.png")
 
-from PySide6.QtCore import Signal # Upewnij się, że masz Signal w importach na górze
+from PySide6.QtCore import Signal
 try:
     import shiboken
 except ImportError:
     shiboken = None
 
 class ClickableDebtLabel(QLabel):
-    clicked = Signal(int, str)  # Emituje: id_dlugu, typ ('lia' lub 'deb')
+    clicked = Signal(int, str)
 
     def __init__(self, text, debt_id, debt_type, parent=None):
         super().__init__(text, parent)
@@ -59,7 +59,6 @@ class BudgetApp(QMainWindow):
         self.current_month = now.month
         self.current_year = now.year
 
-        # Próba przywrócenia ostatniej daty z ustawień
         ly = self.settings.value("last_year", type=int)
         lm = self.settings.value("last_month", type=int)
         if ly and lm is not None:
@@ -73,13 +72,13 @@ class BudgetApp(QMainWindow):
 
         c = QWidget(); self.setCentralWidget(c); self.main_layout = QVBoxLayout(c)
 
-        # 2. Budujemy interfejs
         self.setup_top_bar()
         self.setup_dashboard()
         self.setup_buttons()
         self.setup_table()
         self.setup_footer()
         self.apply_module_visibility()
+
         self.menu_manager = AppMenuConfig(self)
         self.menu_manager.setup_all_menus()
 
@@ -91,52 +90,39 @@ class BudgetApp(QMainWindow):
         self._pending_category_click = None
         self.setVisible(False)
 
-    # Szukaj w okolicy linii 1600-1700 (tam gdzie masz inne metody open_...)
 
     def open_settings_dialog(self):
         from settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, self.db)
         if dlg.exec():
-            # Po zamknięciu odświeżamy widoczność przycisków i paneli
             self.apply_module_visibility()
-            self.load_transactions() # Odświeży też statystyki
+            self.load_transactions()
 
     def apply_module_visibility(self):
-        """
-        Poprawiona widoczność:
-        - Zakupy i Tydzień: sterowane tylko przyciskiem (Twoja prośba).
-        - Długi i Dłużnicy: bez zmian (Twoja oryginalna logika).
-        """
-        # 1. Pobieramy ustawienia z bazy
         show_lia_mod = self.db.get_config_bool("show_liabilities", True)
         show_deb_mod = self.db.get_config_bool("show_debtors", True)
         show_shop = self.db.get_config_bool("show_shopping", True)
         show_week = self.db.get_config_bool("show_weekly", True)
+        show_forecast = self.db.get_config_bool("show_forecast", True)
 
-        # --- NOWE MODUŁY: TYLKO UKRYWANIE PRZYCISKÓW ---
         if hasattr(self, 'btn_shop'):
             self.btn_shop.setVisible(show_shop)
-
         if hasattr(self, 'btn_weekly'):
             self.btn_weekly.setVisible(show_week)
-            # Jeśli moduł wyłączony, a widok tygodnia był aktywny - wróć do miesiąca
             if not show_week and hasattr(self, 'weekly_widget') and self.weekly_widget.isVisible():
                 self.weekly_widget.setVisible(False)
                 self.monthly_widget.setVisible(True)
+        if hasattr(self, 'btn_forecast'):
+            self.btn_forecast.setVisible(show_forecast)
 
-        # --- DŁUGI I DŁUŻNICY: TWOJA ORYGINALNA LOGIKA (BEZ ZMIAN) ---
-        # 2. Ukrywamy/Pokazujemy dolne przyciski akcji
         self.btn_liabilities.setVisible(show_lia_mod)
         self.btn_debtors.setVisible(show_deb_mod)
 
-        # 3. Odświeżamy treść paneli (generujemy paski postępu)
         if show_lia_mod:
             self.update_liabilities_display()
         if show_deb_mod:
             self.update_debtors_display()
 
-        # 4. Decydujemy o widoczności całych GroupBoxów (Panel boczny)
-        # Pokazuje się tylko jeśli: moduł włączony ORAZ są aktywne wpisy
         status_lia = self.db.get_liabilities_status()
         has_active_lia = any((d['total'] - d['paid']) > 0.01 for d in status_lia)
         self.lia_box.setVisible(show_lia_mod and has_active_lia)
@@ -151,7 +137,6 @@ class BudgetApp(QMainWindow):
         from PySide6.QtCore import QPoint
 
         menu = QMenu(self)
-        # Używamy tego samego stylu co w filtrze (możesz go wydzielić do stałej)
         menu.setStyleSheet(self.get_menu_style())
 
         for i, name in enumerate(MONTH_NAME):
@@ -169,8 +154,7 @@ class BudgetApp(QMainWindow):
         from PySide6.QtGui import QAction
         from PySide6.QtCore import QPoint
 
-        # Pobieramy lata, które faktycznie istnieją w bazie
-        years = self.db.get_available_years() # Musisz dodać tę metodę do klasy Database
+        years = self.db.get_available_years()
         if self.current_year not in years: years.append(self.current_year)
         years.sort(reverse=True)
 
@@ -195,9 +179,7 @@ class BudgetApp(QMainWindow):
         self.load_transactions()
 
     def change_week(self, delta):
-        """Przesuwa widok tygodnia o określoną liczbę tygodni (delta)."""
         self.week_offset += delta
-        # Po zmianie offsetu musimy przeładować dane, by tabela pokazała właściwy tydzień
         self.load_transactions()
 
     def get_menu_style(self):
@@ -230,14 +212,11 @@ class BudgetApp(QMainWindow):
         from shopping import ShoppingListDialog
         l = QHBoxLayout(); l.setContentsMargins(0, 0, 0, 10)
 
-        # --- UJEDNOLICONA MATEMATYKA WYSOKOŚCI ---
-        # 22px (wysokość) + 2*2px (border) = 26px całkowitej wysokości dla wszystkich
         common_height = """
             min-height: 22px;
             max-height: 22px;
         """
 
-        # --- STYLE ---
         date_btn_style = f"""
             QPushButton {{
                 font-size: 12px; font-weight: bold; padding: 2px 10px; border-radius: 6px;
@@ -262,11 +241,9 @@ class BudgetApp(QMainWindow):
         pdf_style = top_base_style + """ QPushButton { color: #c0392b; border-color: #e74c3c; } QPushButton:hover { background-color: #c0392b; color: #ffffff; } """
         close_style = top_base_style + """ QPushButton { color: #ba4a00; border-color: #e67e22; } QPushButton:hover { background-color: #ba4a00; color: #ffffff; } """
 
-        # --- ELEMENTY ---
         lbl = QLabel(_("Okres:"))
         lbl.setStyleSheet("font-size: 14px; font-weight: bold;")
 
-        # Przyciski Daty
         self.btn_sel_month = QPushButton(MONTH_NAME[self.current_month - 1])
         self.btn_sel_month.setStyleSheet(date_btn_style)
         self.btn_sel_month.clicked.connect(self.open_month_menu)
@@ -275,21 +252,18 @@ class BudgetApp(QMainWindow):
         self.btn_sel_year.setStyleSheet(date_btn_style)
         self.btn_sel_year.clicked.connect(self.open_year_menu)
 
-        # Backup
-        self.btn_back = QPushButton(_("Backup")) # Zmieniamy na self.btn_backup
+        self.btn_back = QPushButton(_("Backup"))
         self.btn_back.setStyleSheet(back_style)
         def _open_backup():
             self._backup_dlg = BackupDialog(self, self.db)
             self._backup_dlg.exec()
         self.btn_back.clicked.connect(_open_backup)
 
-        # Przycisk Ustawienia
         settings_style = top_base_style + """ QPushButton { color: #7f8c8d; border-color: #95a5a6; } QPushButton:hover { background-color: #7f8c8d; color: #ffffff; } """
         self.btn_settings = QPushButton(_("⚙️ Ustawienia"))
         self.btn_settings.setStyleSheet(settings_style)
         self.btn_settings.clicked.connect(self.open_settings_dialog)
 
-        # Wyszukiwarka (Dostosowana do wysokości przycisków)
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText(_("Szukaj: '19zł', 'czynsz', '21.06'..."))
         self.search_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -301,16 +275,14 @@ class BudgetApp(QMainWindow):
             }}
             QLineEdit:focus {{ border: 2px solid #3498db; }}
         """)
-        # W __init__ (tam gdzie tworzysz UI)
+
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(300)
-        self.search_timer.timeout.connect(self.load_transactions) # To musi celować w funkcję ładowania
+        self.search_timer.timeout.connect(self.load_transactions)
 
-        # To wywołuje timer przy każdej literce
         self.search_bar.textChanged.connect(lambda: self.search_timer.start())
 
-        # Pozostałe przyciski
         self.btn_weekly = QPushButton(_("📅 Limit Tygodnia"))
         self.btn_weekly.setStyleSheet(weekly_style)
         self.btn_weekly.clicked.connect(self.open_weekly_settings_safe)
@@ -326,6 +298,10 @@ class BudgetApp(QMainWindow):
         self.btn_filter.setStyleSheet(filter_style)
         self.btn_filter.clicked.connect(self.open_filter_dialog)
 
+        self.btn_forecast = QPushButton(_("📈 Prognozy"))
+        self.btn_forecast.setStyleSheet(weekly_style)
+        self.btn_forecast.clicked.connect(self.open_forecast_dialog)
+
         self.btn_pdf = QPushButton(_("📄 Zapisz do PDF"))
         self.btn_pdf.setStyleSheet(pdf_style)
         self.btn_pdf.clicked.connect(self.open_report_dialog)
@@ -334,7 +310,6 @@ class BudgetApp(QMainWindow):
         self.btn_close_month.setStyleSheet(close_style)
         self.btn_close_month.clicked.connect(self.toggle_month_lock)
 
-        # --- UKŁADANIE NA PASKU ---
         l.addWidget(lbl)
         l.addWidget(self.btn_sel_month)
         l.addWidget(self.btn_sel_year)
@@ -346,13 +321,13 @@ class BudgetApp(QMainWindow):
         l.addWidget(self.btn_weekly)
         l.addWidget(self.btn_shop)
         l.addWidget(self.btn_filter)
+        l.addWidget(self.btn_forecast)
         l.addWidget(self.btn_pdf)
         l.addWidget(self.btn_close_month)
 
         self.main_layout.addLayout(l)
 
     def schedule_update(self): self.update_timer.start(50)
-
 
 
     def open_weekly_settings(self):
@@ -381,23 +356,16 @@ class BudgetApp(QMainWindow):
 
     def open_bills_manager(self):
         from dialogs import BillsManagerDialog
-        # Pobieramy Twoją listę kategorii (dostosuj, jeśli masz inną metodę)
         categories = self.db.get_categories()
-        # Czasami get_categories zwraca listę krotek np. [('Jedzenie',), ('Opłaty',)].
-        # Jeśli tak jest, użyj: categories = [c[0] for c in self.db.get_categories()]
 
-        # --- ZMIANA: Dodajemy 'self.', żeby okno przeżyło w pamięci! ---
         self.current_bills_dialog = BillsManagerDialog(self.db, categories, self)
         self.current_bills_dialog.exec()
-        # ----------------------------------------------------------------
 
-        # MAGIA NR 2: Jak zamkniesz okno rachunków, główny ekran
-        # automatycznie przeładuje finanse i zaktualizuje dzwonek powiadomień!
         self.load_transactions()
         self.check_bills_notifications()
 
     def setup_dashboard(self):
-        global _ #to jest zamiana żeby błędem nie walił
+        global _
         dash_group = QGroupBox()
         dash_layout = QHBoxLayout()
         stats_widget = QWidget()
@@ -405,108 +373,86 @@ class BudgetApp(QMainWindow):
         stats_layout.setSpacing(5)
         stats_layout.setContentsMargins(0,0,0,0)
 
-        # --- ZMIANA: SALDO ŁĄCZNE I LISTA KONT ---
         self.lbl_balance = QLabel(_("SALDO ŁĄCZNE: 0.00 zł"))
         self.lbl_balance.setStyleSheet("""
             QLabel { color: #2ecc71; font-size: 22px; font-weight: bold; }
             QLabel:hover { color: #27ae60; }
         """)
-        # --- TO DODAJE ŁAPKĘ PO NAJECHANIU MYSZKĄ ---
         self.lbl_balance.setCursor(Qt.PointingHandCursor)
-        # --------------------------------------------
-        # Sprawiamy, że label reaguje na kliknięcie jak przycisk
+
         self.lbl_balance.mousePressEvent = lambda e: self.toggle_accounts_visibility()
 
-        # --- TO JEST NASZ NOWY KONTENER ---
         self.accounts_container = QWidget()
         self.accounts_balances_layout = QVBoxLayout(self.accounts_container)
         self.accounts_balances_layout.setSpacing(2)
         self.accounts_balances_layout.setContentsMargins(15, 0, 0, 5)
-        # Zamiast sztywnego False, czytamy z ustawień (domyślnie False jeśli brak klucza)
         acc_vis = self.settings.value("dash_acc_vis", False, type=bool)
         self.accounts_container.setVisible(acc_vis)
-        # ----------------------------------
 
-        # --- SEKCJA SALDA Z POPRZEDNIEGO MIESIĄCA (ZWIJANA) ---
         self.lbl_prev_balance = QLabel(_("z poprzedniego miesiąca: 0.00 zł"))
         self.lbl_prev_balance.setStyleSheet("""
             QLabel { color: gray; font-size: 13px; }
             QLabel:hover { color: #555; text-decoration: underline; }
         """)
         self.lbl_prev_balance.setCursor(Qt.PointingHandCursor)
-        # Podpinamy metodę przełączającą
         self.lbl_prev_balance.mousePressEvent = lambda e: self.toggle_prev_balance_visibility()
 
-        # Tworzymy kontener na rozbicie salda z poprzedniego miesiąca
         self.prev_balance_container = QWidget()
         self.prev_balance_details_layout = QVBoxLayout(self.prev_balance_container)
         self.prev_balance_details_layout.setSpacing(1)
         self.prev_balance_details_layout.setContentsMargins(15, 0, 0, 5)
         prev_vis = self.settings.value("dash_prev_vis", False, type=bool)
-        self.prev_balance_container.setVisible(prev_vis) # DOMYŚLNIE UKRYTE
+        self.prev_balance_container.setVisible(prev_vis)
 
-        # --- NOWE: Wpływy łączne (ten msc) ---
         self.lbl_income_month = QLabel(_("Wpływy (ten msc): 0.00 zł"))
         self.lbl_income_month.setStyleSheet("font-size: 14px; color: #27ae60; font-weight: bold; margin-top: 5px;")
-        # -------------------------------------
         self.lbl_expenses_month = QLabel(_("Wydatki (ten msc): 0.00 zł"))
         self.lbl_expenses_month.setStyleSheet("font-size: 14px; color: #c0392b; font-weight: bold; margin-top: 5px;")
-        # --- SEKCJA OSZCZĘDNOŚCI W TYM MIESIĄCU (ZWIJANA) ---
         self.lbl_savings_month = QLabel(_("Oszczędności (ten msc): 0.00 zł"))
         self.lbl_savings_month.setStyleSheet("""
             QLabel { color: #2874A6; font-size: 14px; font-weight: bold; margin-top: 5px; }
             QLabel:hover { color: #21618C; }
         """)
         self.lbl_savings_month.setCursor(Qt.PointingHandCursor)
-        # Podpinamy nową metodę do kliknięcia
         self.lbl_savings_month.mousePressEvent = lambda e: self.toggle_savings_month_visibility()
 
-        # Tworzymy kontener na szczegóły oszczędności z tego miesiąca
         self.savings_month_container = QWidget()
         self.savings_month_details_layout = QVBoxLayout(self.savings_month_container)
         self.savings_month_details_layout.setSpacing(2)
         self.savings_month_details_layout.setContentsMargins(15, 0, 0, 5)
         sav_m_vis = self.settings.value("dash_sav_m_vis", False, type=bool)
-        self.savings_month_container.setVisible(sav_m_vis) # DOMYŚLNIE UKRYTE
+        self.savings_month_container.setVisible(sav_m_vis)
 
         self.lbl_income_breakdown = QLabel(_("Przychody..."))
         self.lbl_income_breakdown.setStyleSheet("font-size: 13px; color: gray;")
         self.lbl_income_breakdown.setAlignment(Qt.AlignRight | Qt.AlignTop)
-        # --- SEKCJA OSZCZĘDNOŚCI ŁĄCZNIE (ZWIJANA) ---
         self.lbl_savings_total = QLabel(_("OSZCZĘDNOŚCI ŁĄCZNIE: 0.00 zł"))
         self.lbl_savings_total.setStyleSheet("""
             QLabel { color: #2874A6; font-size: 14px; font-weight: bold; padding-top: 5px; }
             QLabel:hover { color: #21618C; }
         """)
         self.lbl_savings_total.setCursor(Qt.PointingHandCursor)
-        # Podpinamy nową metodę do kliknięcia
         self.lbl_savings_total.mousePressEvent = lambda e: self.toggle_savings_visibility()
 
-        # Tworzymy kontener na szczegóły oszczędności
         self.savings_total_container = QWidget()
         self.savings_total_details_layout = QVBoxLayout(self.savings_total_container)
         self.savings_total_details_layout.setSpacing(2)
         self.savings_total_details_layout.setContentsMargins(15, 0, 0, 5)
         sav_t_vis = self.settings.value("dash_sav_t_vis", False, type=bool)
-        self.savings_total_container.setVisible(sav_t_vis) # DOMYŚLNIE UKRYTE
-        # <--- UKRYTE
+        self.savings_total_container.setVisible(sav_t_vis)
 
         top_split_layout = QHBoxLayout()
         top_left_v = QVBoxLayout()
         top_left_v.addWidget(self.lbl_balance)
-        top_left_v.addWidget(self.accounts_container) # <--- DODAJ TO TUTAJ
-        # DODAJEMY LAYOUT KONT TUTAJ (zaraz pod napisem SALDO ŁĄCZNE)
-        #top_left_v.addLayout(self.accounts_balances_layout)
+        top_left_v.addWidget(self.accounts_container)
+
         top_left_v.addWidget(self.lbl_prev_balance)
         top_left_v.addWidget(self.prev_balance_container)
-        #top_left_v.addLayout(self.prev_balance_details_layout)
-        top_left_v.addWidget(self.lbl_income_month)  # <--- NOWE: Dodajemy do widoku
+        top_left_v.addWidget(self.lbl_income_month)
         top_left_v.addWidget(self.lbl_expenses_month)
-        #top_left_v.addWidget(self.lbl_savings_month)
-        #top_left_v.addLayout(self.savings_month_details_layout) # <-- DODAJ TO
+
         top_left_v.addWidget(self.lbl_savings_total)
         top_left_v.addWidget(self.savings_total_container)
-        #top_left_v.addLayout(self.savings_total_details_layout)
         top_left_v.addStretch()
         top_right_v = QVBoxLayout()
         inc_header = QLabel(_("Wpływy:"))
@@ -514,17 +460,14 @@ class BudgetApp(QMainWindow):
         inc_header.setAlignment(Qt.AlignRight)
         top_right_v.addWidget(inc_header)
 
-        # --- ZMIANA: Zamiast self.lbl_income_breakdown ---
         self.income_cats_layout = QVBoxLayout()
         self.income_cats_layout.setSpacing(2)
         self.income_cats_layout.setAlignment(Qt.AlignRight)
 
-        # Tworzymy pulę przycisków (np. max 15 różnych źródeł wpływów)
         self.income_rows = []
         for i in range(15):
             btn = QPushButton()
             btn.setCursor(Qt.PointingHandCursor)
-            # Styl: mały tekst, wyrównany do prawej, bez ramki (jak link)
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: right; color: gray; font-size: 13px;
@@ -538,14 +481,12 @@ class BudgetApp(QMainWindow):
             self.income_rows.append(btn)
 
         top_right_v.addLayout(self.income_cats_layout)
-        # -------------------------------------------------
 
         self.lbl_income_total = QLabel(_("Suma Wpływów: 0.00 zł"))
         self.lbl_income_total.setStyleSheet("color: #27ae60; font-weight: bold; font-size: 13px; margin-top: 5px; padding-top: 5px;")
         self.lbl_income_total.setAlignment(Qt.AlignRight)
         top_right_v.addWidget(self.lbl_income_total)
 
-        # --- NOWE: Sekcja zwrotów od dłużników ---
         self.lbl_debtors_header = QLabel(_("Dodatkowo oddane przez:"))
         self.lbl_debtors_header.setStyleSheet("color: #d35400; font-weight: bold; font-size: 12px; margin-top: 5px;")
         self.lbl_debtors_header.setAlignment(Qt.AlignRight)
@@ -556,12 +497,9 @@ class BudgetApp(QMainWindow):
 
         top_right_v.addWidget(self.lbl_debtors_header)
         top_right_v.addWidget(self.lbl_debtors_breakdown)
-        # -----------------------------------------
-        top_right_v.addSpacing(5) # Mały odstęp od wydatków
+        top_right_v.addSpacing(5)
         top_right_v.addWidget(self.lbl_savings_month)
         top_right_v.addWidget(self.savings_month_container)
-        #top_right_v.addLayout(self.savings_month_details_layout)
-
 
         top_right_v.addStretch()
 
@@ -579,15 +517,17 @@ class BudgetApp(QMainWindow):
         self.goals_list_layout = QVBoxLayout()
         self.goals_list_layout.setSpacing(8)
         h = QHBoxLayout()
-        btn_tr = QPushButton(_("⇄ Transfer"))
-        btn_tr.setFixedWidth(65)
-        btn_tr.setStyleSheet("font-size:10px; padding:2px; background:#5DADE2; color:white; border-radius:3px;")
-        btn_tr.clicked.connect(self.open_transfer_dialog)
-        btn_add = QPushButton(_("+ Cel"))
-        btn_add.setFixedWidth(40)
-        btn_add.setStyleSheet("font-size:10px; padding:2px;")
-        btn_add.clicked.connect(self.open_new_goal_dialog)
-        h.addWidget(QLabel(_("Postęp:"))); h.addStretch(); h.addWidget(btn_tr); h.addWidget(btn_add)
+        btn_goal_op = QPushButton(_("Wpłać / Wypłać"))
+        btn_goal_op.setStyleSheet("""
+            QPushButton {
+                font-size: 11px; font-weight: bold; padding: 3px 12px;
+                border-radius: 6px; border: 2px solid #3498db;
+                background-color: transparent; color: #2980b9; min-height: 22px;
+            }
+            QPushButton:hover { background-color: #2980b9; color: white; }
+        """)
+        btn_goal_op.clicked.connect(self.open_goal_operation_dialog)
+        h.addWidget(QLabel(_("Postęp:"))); h.addStretch(); h.addWidget(btn_goal_op)
         self.goals_lay.addLayout(h)
         self.goals_lay.addLayout(self.goals_list_layout)
         self.goals_box.setLayout(self.goals_lay)
@@ -615,7 +555,6 @@ class BudgetApp(QMainWindow):
         self.deb_box.setLayout(self.debtors_layout)
         self.deb_box.hide()
 
-        #stats_layout.addWidget(self.lbl_savings_total)
         stats_layout.addWidget(self.goals_box)
         stats_layout.addWidget(self.lia_box)
         stats_layout.addWidget(self.deb_box)
@@ -625,26 +564,20 @@ class BudgetApp(QMainWindow):
         self.right_panel_layout = QVBoxLayout(self.right_panel)
         self.right_panel_layout.setContentsMargins(0,0,0,0)
 
-        # Inicjalizacja widoku miesięcznego
-        # --- WIDOK MIESIĘCZNY ---
         self.monthly_widget = QWidget()
         self.monthly_ui_layout = QVBoxLayout(self.monthly_widget)
         self.monthly_ui_layout.setContentsMargins(10, 0, 0, 0)
         self.monthly_ui_layout.setSpacing(0)
 
-        # 1. Nagłówek (musi być dodany jako pierwszy do monthly_ui_layout)
-        self.lbl_monthly_cat_head = QLabel("") # Na razie pusty
+        self.lbl_monthly_cat_head = QLabel("")
         self.lbl_monthly_cat_head.setStyleSheet("font-weight: bold; margin-top: 5px; margin-bottom: 5px;")
         self.lbl_monthly_cat_head.setAlignment(Qt.AlignCenter)
         self.monthly_ui_layout.addWidget(self.lbl_monthly_cat_head)
 
-
-        # 2. Layout kategorii (rozpychający się)
         self.monthly_cat_layout = QVBoxLayout()
-        self.monthly_cat_layout.setContentsMargins(0, 10, 2, 0) # Margines 15px na strzałki trendów
+        self.monthly_cat_layout.setContentsMargins(0, 10, 2, 0)
         self.monthly_cat_layout.setSpacing(2)
 
-        # PULA WIDGETÓW MIESIĘCZNYCH (Object Pooling - max 50 kategorii)
         self.monthly_rows = []
         for i in range(50):
             row_w = QWidget()
@@ -653,7 +586,6 @@ class BudgetApp(QMainWindow):
 
             btn = QPushButton()
             btn.setCursor(Qt.PointingHandCursor)
-            # --- DODANY STYL HOVER NA NIEBIESKO ---
             btn.setStyleSheet("""
                 QPushButton {
                     text-align: left;
@@ -671,47 +603,32 @@ class BudgetApp(QMainWindow):
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignRight)
 
-            row_l.addWidget(btn)    # Przycisk z nazwą kategorii
-            row_l.addStretch(1)     # Ta "sprężyna" wypchnie kwotę maksymalnie do prawej
-            row_l.addWidget(lbl)    # Etykieta z kwotą i trendem
+            row_l.addWidget(btn)
+            row_l.addStretch(1)
+            row_l.addWidget(lbl)
 
             self.monthly_cat_layout.addWidget(row_w)
-            row_w.hide() # Ukryte domyślnie
+            row_w.hide()
             self.monthly_rows.append({'row': row_w, 'btn': btn, 'lbl': lbl})
 
-        # Stała sprężyna na końcu listy kategorii
         self.monthly_cat_layout.addStretch()
 
-        # Dodajemy layout kategorii do głównego układu pod nagłówek
         self.monthly_ui_layout.addLayout(self.monthly_cat_layout, stretch=1)
 
-        # 3. System ostrzeżeń o rachunkach (na samym dole)
         self.lbl_bills_alert = QLabel("")
         self.lbl_bills_alert.setStyleSheet("color: #c0392b; font-weight: bold; font-size: 12px; margin-top: 10px;")
         self.lbl_bills_alert.setWordWrap(True)
         self.lbl_bills_alert.hide()
         self.monthly_ui_layout.addWidget(self.lbl_bills_alert)
-        # --------------------------------------------------------
 
-        # Inicjalizacja widoku tygodniowego
         self.weekly_widget = QWidget()
         self.weekly_ui_layout = QVBoxLayout(self.weekly_widget)
         self.setup_weekly_ui()
         self.weekly_widget.hide()
 
-        #self.right_panel_layout.addWidget(self.monthly_widget)
-        #self.right_panel_layout.addWidget(self.weekly_widget)
-
-        #dash_layout.addWidget(stats_widget, stretch=1)
-        #dash_layout.addWidget(self.right_panel, stretch=1)
-        #dash_group.setLayout(dash_layout)
-        #self.main_layout.addWidget(dash_group)
-
-        #to u góry bylo a teraz to na dole
-        # TWORZYMY STOS WIDOKÓW
         self.view_stack = QStackedWidget()
-        self.view_stack.addWidget(self.monthly_widget) # Karta nr 0 (Miesiąc)
-        self.view_stack.addWidget(self.weekly_widget)  # Karta nr 1 (Tydzień)
+        self.view_stack.addWidget(self.monthly_widget)
+        self.view_stack.addWidget(self.weekly_widget)
         self.right_panel_layout.addWidget(self.view_stack)
 
         dash_layout.addWidget(stats_widget, stretch=1)
@@ -727,7 +644,7 @@ class BudgetApp(QMainWindow):
         nav_layout.addWidget(btn_prev); nav_layout.addWidget(self.lbl_week_range, stretch=1); nav_layout.addWidget(btn_next)
 
         self.lbl_current_limit = QLabel(_("Limit: 0.00 zł")); self.lbl_current_limit.setStyleSheet("color: #555; font-size: 12px; font-weight: bold;"); self.lbl_current_limit.setAlignment(Qt.AlignCenter)
-        self.weekly_pbar = QProgressBar(); self.weekly_pbar.setFixedHeight(15); self.weekly_pbar.setAlignment(Qt.AlignCenter)
+        self.weekly_pbar = QProgressBar(); self.weekly_pbar.setFixedHeight(12); self.weekly_pbar.setAlignment(Qt.AlignCenter)
         self.lbl_weekly_spent = QLabel(_("Wydano: 0.00 zł")); self.lbl_weekly_spent.setStyleSheet("color: #c0392b; font-size: 12px;")
         self.lbl_weekly_remaining = QLabel(_("Pozostało w tym tygodniu: 0.00 zł")); self.lbl_weekly_remaining.setStyleSheet("color: #27ae60; font-weight: bold; font-size: 14px;")
         self.lbl_last_week_saved = QLabel(_("Z poprzedniego tygodnia wróciło: 0.00 zł")); self.lbl_last_week_saved.setStyleSheet("color: #7f8c8d; font-style: italic; font-size: 11px;")
@@ -736,12 +653,10 @@ class BudgetApp(QMainWindow):
         self.lbl_cat_head = QLabel(_("Struktura wydatków:")); self.lbl_cat_head.setStyleSheet("font-weight: bold; margin-top: 5px;")
         self.lbl_cat_head.setAlignment(Qt.AlignCenter)
 
-        # --- ZMIANA: Usuwamy QScrollArea, tworzymy bezpośredni layout dla kategorii ---
         self.weekly_cat_layout = QVBoxLayout()
-        self.weekly_cat_layout.setContentsMargins(0, 0, 2, 0) # 15px odstępu od prawej dla trendów
+        self.weekly_cat_layout.setContentsMargins(0, 0, 2, 0)
         self.weekly_cat_layout.setSpacing(2)
 
-        # PULA WIDGETÓW TYGODNIOWYCH (Object Pooling - max 50 kategorii)
         self.weekly_rows = []
         for i in range(50):
             row_w = QWidget()
@@ -749,30 +664,25 @@ class BudgetApp(QMainWindow):
             row_l.setContentsMargins(15, 2, 0, 2)
             btn = QPushButton()
             btn.setCursor(Qt.PointingHandCursor)
-            # Podpinamy uniwersalny kliker
             btn.clicked.connect(self._handle_any_category_click)
 
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignRight)
-            row_l.addWidget(btn)    # Przycisk z nazwą kategorii
-            row_l.addStretch(1)     # Ta "sprężyna" wypchnie kwotę maksymalnie do prawej
-            row_l.addWidget(lbl)    # Etykieta z kwotą i trendem
+            row_l.addWidget(btn)
+            row_l.addStretch(1)
+            row_l.addWidget(lbl)
 
-            # Dodajemy widget bezpośrednio do layoutu, a nie do kontenera scrolla
             self.weekly_cat_layout.addWidget(row_w)
             row_w.hide()
             self.weekly_rows.append({'row': row_w, 'btn': btn, 'lbl': lbl})
 
-        # Sprężyna na końcu layoutu kategorii, by pchać je do góry
         self.weekly_cat_layout.addStretch()
 
-        # --- Etykieta na powiadomienia o rachunkach ---
         self.lbl_weekly_bills_alert = QLabel("")
         self.lbl_weekly_bills_alert.setStyleSheet("color: #c0392b; font-size: 12px; margin-top: 10px;")
         self.lbl_weekly_bills_alert.setWordWrap(True)
         self.lbl_weekly_bills_alert.hide()
 
-        # --- UKŁADANIE ELEMENTÓW W GŁÓWNYM LAYOUCIE TYGODNIA ---
         self.weekly_ui_layout.addLayout(nav_layout)
         self.weekly_ui_layout.addWidget(self.lbl_current_limit)
         self.weekly_ui_layout.addWidget(self.weekly_pbar)
@@ -792,34 +702,29 @@ class BudgetApp(QMainWindow):
         self.weekly_ui_layout.addWidget(self.lbl_month_savings)
         self.weekly_ui_layout.addWidget(self.lbl_cat_head)
 
-        # DODAJEMY LAYOUT KATEGORII (zamiast self.weekly_cat_area)
         self.weekly_ui_layout.addLayout(self.weekly_cat_layout, stretch=1)
 
-        # Powiadomienia o rachunkach na sam dół
         self.weekly_ui_layout.addWidget(self.lbl_weekly_bills_alert)
 
 
     def check_weekly_bills(self, week_start_qdate, week_end_qdate):
         bills = self.db.get_pending_bills()
-        today = QDate.currentDate() # Potrzebne do obliczenia zaległości
+        today = QDate.currentDate()
         alerts = []
 
         months_pl = ["", "Stycznia", "Lutego", "Marca", "Kwietnia", "Maja", "Czerwca",
                      "Lipca", "Sierpnia", "Września", "Października", "Listopada", "Grudnia"]
 
         for b in bills:
-            # Rozpakowujemy b_id, d_date, amt, cat, desc, is_rec, ref_id
             b_id, d_date, amt, cat, desc, is_rec, _ = b
             due = QDate.fromString(d_date, "yyyy-MM-dd")
             days = today.daysTo(due)
 
-            # --- LOGIKA: POKAZUJ JEŚLI TERMIN MIEŚCI SIĘ W TYGODNIU LUB JUŻ MINĄŁ ---
             if due <= week_end_qdate:
                 day = due.day()
                 month_name = months_pl[due.month()]
 
                 if days < 0:
-                    # Rachunek zaległy (sprzed tygodnia lub z tego tygodnia)
                     days_overdue = abs(days)
                     alerts.append(
                         f"<span style='color: #e74c3c; font-size: 11px; font-weight: bold;'>"
@@ -827,7 +732,6 @@ class BudgetApp(QMainWindow):
                         f"</span>"
                     )
                 elif week_start_qdate <= due <= week_end_qdate:
-                    # Rachunek przypadający na bieżący tydzień (niezaległy)
                     alerts.append(
                         f"<span style='color: palette(text); font-size: 11px;'>"
                         f"• {desc} ({cat}) na <b>{day}-go {month_name}</b>: <b>{amt:.2f} zł</b>"
@@ -873,7 +777,16 @@ class BudgetApp(QMainWindow):
         elif pct > 20: col = "#f39c12"
         else: col = "#e74c3c"
 
-        self.weekly_pbar.setStyleSheet(f"QProgressBar {{ border: 1px solid palette(mid); border-radius: 3px; text-align: center; background: transparent; }} QProgressBar::chunk {{ background-color: {col}; }}")
+        self.weekly_pbar.setStyleSheet(f"""
+            QProgressBar {{
+                text-align: center;
+            }}
+
+            QProgressBar::chunk {{
+                background-color: {col};
+                border-radius: 2px;
+            }}
+        """)
         self.lbl_weekly_spent.setText(_("Wydano: {:.2f} zł").format(total_spent))
 
         if remaining < 0: self.lbl_weekly_remaining.setText(_("Przekroczono: {:.2f} zł").format(abs(remaining))); self.lbl_weekly_remaining.setStyleSheet("color: #e74c3c; font-weight: bold; font-size: 14px;")
@@ -882,7 +795,6 @@ class BudgetApp(QMainWindow):
         prev_start = start_of_week - timedelta(days=7); prev_end = prev_start + timedelta(days=6); prev_s_str = prev_start.strftime("%Y-%m-%d")
         found_prev, prev_limit, prev_cats = self.db.get_weekly_limit_for_week(prev_s_str)
 
-        # Pobieranie danych z zeszłego tygodnia do trendów
         prev_data = self.db.get_expenses_in_range(prev_s_str, prev_end.strftime("%Y-%m-%d"), prev_cats if found_prev else None)
         prev_dict = {cat: amt for cat, amt in prev_data}
 
@@ -907,7 +819,6 @@ class BudgetApp(QMainWindow):
         current_month_name = MONTH_NAME[viewed_month_idx - 1]
         self.lbl_month_savings.setText(_("Udało się zaoszczędzić w miesiącu {}: {:.2f} zł").format(current_month_name, accumulated_savings))
 
-        # Reset poola
         for r_dict in self.weekly_rows: r_dict['row'].hide()
 
         if cat_data:
@@ -926,7 +837,6 @@ class BudgetApp(QMainWindow):
                 r_dict['btn'].setProperty("cat_name", cat)
                 r_dict['btn'].clicked.connect(self._handle_any_category_click)
 
-                # Styl dla przycisku w widoku tygodniowym
                 if is_active:
                     r_dict['btn'].setStyleSheet("QPushButton { text-align: left; font-weight: bold; color: #3498db; border: none; background: transparent; }")
                 else:
@@ -935,7 +845,6 @@ class BudgetApp(QMainWindow):
                         QPushButton:hover { color: #3498db; text-decoration: underline; }
                     """)
 
-                # --- NOWA LOGIKA TRENDU TYGODNIOWEGO Z WYRÓWNANIEM ---
                 prev_amt = prev_dict.get(cat, 0.0)
                 trend_str = ""
                 if prev_amt > 0:
@@ -951,7 +860,6 @@ class BudgetApp(QMainWindow):
 
                 cat_pct = int((amt / total_spent) * 100) if total_spent > 0 else 0
 
-                # WYRÓWNANIE: Kwota | % | Trend - wszystko dociśnięte do prawej
                 rich_text = f"""
                 <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
@@ -970,12 +878,7 @@ class BudgetApp(QMainWindow):
                 r_dict['lbl'].setTextFormat(Qt.RichText)
                 r_dict['lbl'].setText(rich_text)
 
-                # Usuwamy sztywny setFixedWidth lub ustawiamy go na tyle mały,
-                # żeby addStretch mógł zadziałać i wypchnąć etykietę.
                 r_dict['lbl'].setFixedWidth(243)
-
-                #r_dict['lbl'].setTextFormat(Qt.RichText)
-                #r_dict['lbl'].setText(f"{amt:.2f} zł ({cat_pct}%) {trend_str}")
 
                 if is_active: r_dict['lbl'].setStyleSheet("font-weight: bold; color: #3498db;")
                 else: r_dict['lbl'].setStyleSheet("")
@@ -983,19 +886,17 @@ class BudgetApp(QMainWindow):
                 r_dict['row'].show()
                 idx += 1
 
-        # Odpalenie weryfikacji rachunków na dany tydzień
         q_start = QDate.fromString(s_str, "yyyy-MM-dd")
         q_end = QDate.fromString(e_str, "yyyy-MM-dd")
         self.check_weekly_bills(q_start, q_end)
 
         return remaining
 
-    # Nowa, jednolita metoda dla miesięcznego i tygodniowego, BEZ użycia lambd w pętli!
     def _handle_any_category_click(self):
-        sender = self.sender() # Bezpieczne pobranie obiektu, który wywołał sygnał
+        sender = self.sender()
         if not sender: return
 
-        category = sender.property("cat_name") # Pobranie nazwy zapisanej jako właściwość widgetu
+        category = sender.property("cat_name")
         if not category: return
 
         if self.weekly_widget.isVisible():
@@ -1012,13 +913,11 @@ class BudgetApp(QMainWindow):
         self.update_timer.start(50)
 
     def _clear_layout_safely(self, layout):
-        # Najbezpieczniejsza z możliwych metod czyszczenia układu w PySide
         while layout.count():
             child = layout.takeAt(0)
             widget = child.widget()
             if widget:
                 widget.hide()
-                # Wymusza natychmiastowe zerwanie sygnałów przed usunięciem!
                 widget.blockSignals(True)
                 widget.setParent(None)
                 widget.deleteLater()
@@ -1030,46 +929,31 @@ class BudgetApp(QMainWindow):
                 font-size: 16px; font-weight: bold; padding: 12px; border-radius: 8px; border: 2px solid; background-color: transparent;
             }
         """
-
-        # --- CIEMNIEJSZE, NASYCONE STYLE (Dostosowane pod oba motywy) ---
-
-        # Przychód (Mocny zielony)
         inc_style = base_style + """
             QPushButton { color: #27ae60; border-color: #2ecc71; }
             QPushButton:hover { background-color: #27ae60; color: #ffffff; }
         """
-
-        # Wydatek (Mocny czerwony)
         exp_style = base_style + """
             QPushButton { color: #c0392b; border-color: #e74c3c; }
             QPushButton:hover { background-color: #c0392b; color: #ffffff; }
         """
-
-        # Oszczędności (Mocny niebieski)
         sav_style = base_style + """
             QPushButton { color: #2980b9; border-color: #3498db; }
             QPushButton:hover { background-color: #2980b9; color: #ffffff; }
         """
-
-        # Moje Długi (Ciemny karmazyn)
         lia_style = base_style + """
             QPushButton { color: #922b21; border-color: #c0392b; }
             QPushButton:hover { background-color: #922b21; color: #ffffff; }
         """
-
-        # Dłużnicy (Ciemny pomarańcz/brąz)
         deb_style = base_style + """
             QPushButton { color: #d35400; border-color: #e67e22; }
             QPushButton:hover { background-color: #d35400; color: #ffffff; }
         """
-
-        # Rachunki (Głęboki fiolet/śliwka)
         bil_style = base_style + """
             QPushButton { color: #8e44ad; border-color: #9b59b6; }
             QPushButton:hover { background-color: #8e44ad; color: #ffffff; }
         """
 
-        # --- TWORZENIE PRZYCISKÓW ---
         self.btn_income = QPushButton(_("+ DODAJ PRZYCHÓD")); self.btn_income.setStyleSheet(inc_style); self.btn_income.clicked.connect(self.open_income_dialog)
         self.btn_expense = QPushButton(_("- DODAJ WYDATEK")); self.btn_expense.setStyleSheet(exp_style); self.btn_expense.clicked.connect(self.open_expense_dialog)
         self.btn_savings = QPushButton(_("$$ OSZCZĘDNOŚCI")); self.btn_savings.setStyleSheet(sav_style); self.btn_savings.clicked.connect(self.open_savings_dialog)
@@ -1084,14 +968,12 @@ class BudgetApp(QMainWindow):
     def setup_table(self):
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        # Nagłówki kolumn
         self.table.setHorizontalHeaderLabels([
             _("ID"), _("Data"), _("Kto/Kategoria"), _("Opis"), _("Kwota"), _("Szczegóły")
         ])
 
         header = self.table.horizontalHeader()
 
-        # --- STYL NUMERACJI WIERSZY ---
         self.table.verticalHeader().setVisible(True)
         self.table.verticalHeader().setStyleSheet("""
             QHeaderView::section {
@@ -1102,42 +984,33 @@ class BudgetApp(QMainWindow):
             }
         """)
 
-        # --- ZACHOWANIE I BLOKADY (DODANE) ---
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Brak edycji po kliknięciu
-        self.table.setFocusPolicy(Qt.ClickFocus) # Fokus tylko przy kliknięciu, brak ramki edycji
-        self.table.setSelectionMode(QAbstractItemView.ExtendedSelection) # Możliwość zaznaczania wielu wierszy
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows) # Zaznaczaj całe wiersze
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setFocusPolicy(Qt.ClickFocus)
+        self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
 
-        # --- KONFIGURACJA SKALOWANIA ---
-        # Ustawiamy tryby: 1-4 sterowane przez użytkownika, 5 (szczegóły) elastyczne
         for i in [1, 2, 3, 4]:
             header.setSectionResizeMode(i, QHeaderView.Interactive)
         header.setSectionResizeMode(5, QHeaderView.Stretch)
         header.setStretchLastSection(False)
 
-        # --- WCZYTYWANIE USTAWIEŃ SZEROKOŚCI KOLUMN ---
         from config import load_table_widths
         saved_widths = load_table_widths()
         if saved_widths:
             for col_idx, width in saved_widths.items():
                 self.table.setColumnWidth(int(col_idx), width)
         else:
-            # Domyślne wartości przy pierwszym uruchomieniu
-            self.table.setColumnWidth(1, 110) # Data
-            self.table.setColumnWidth(2, 170) # Kategoria
-            self.table.setColumnWidth(3, 170) # Opis
-            self.table.setColumnWidth(4, 100) # Kwota
+            self.table.setColumnWidth(1, 110)
+            self.table.setColumnWidth(2, 170)
+            self.table.setColumnWidth(3, 170)
+            self.table.setColumnWidth(4, 100)
 
-        # --- POZOSTAŁE USTAWIENIA ---
-        self.table.setColumnHidden(0, True) # Ukrywamy techniczne ID
+        self.table.setColumnHidden(0, True)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.open_context_menu)
         self.table.doubleClicked.connect(self.open_edit_dialog)
 
-        # Dodanie tabeli do layoutu
         self.main_layout.addWidget(self.table, 2)
-
-
 
     def keyPressEvent(self, e: QKeyEvent):
         if e.key() == Qt.Key_Delete and self.table.hasFocus(): self.delete_selected_transaction()
@@ -1152,52 +1025,41 @@ class BudgetApp(QMainWindow):
         tid = int(self.table.item(idx, 0).text())
 
         menu = QMenu()
-        # Nakładamy Twój styl menu (zaokrąglenia, kolory)
         menu.setStyleSheet(self.get_menu_style())
 
-        # 1. SEKCOJA ZAŁĄCZNIKA
-        # Pobieramy dane raz, by sprawdzić ich obecność
         attachment = self.db.get_attachment(tid)
 
         if attachment:
-            # Akcja: PODGLĄD
             view_action = QAction(_("👁️ Pokaż załącznik"), self)
             view_action.triggered.connect(lambda: self.preview_attachment(tid))
             menu.addAction(view_action)
 
-            # Akcja: POBIERANIE
             dl_action = QAction(_("📥 Pobierz załącznik"), self)
             dl_action.triggered.connect(lambda: self.download_attachment(tid))
             menu.addAction(dl_action)
 
             menu.addSeparator()
 
-            # Nowa akcja PDF
         export_action = menu.addAction(_("📄 Eksportuj do PDF"))
         export_action.triggered.connect(self.export_selected_to_pdf)
 
-        # 2. SEKCJA EDYCJI I USUWANIA
         is_locked = self.db.is_month_locked(self.get_current_month_str())
 
         if not is_locked:
-            # Edycja tylko dla jednego zaznaczonego wiersza
             if len(selected_rows) == 1:
                 edit_action = QAction(_("Edytuj"), self)
                 edit_action.triggered.connect(self.open_edit_dialog)
                 menu.addAction(edit_action)
 
-            # Usuwanie (może być zbiorcze)
             del_text = _("Usuń ({})").format(len(selected_rows)) if len(selected_rows) > 1 else _("Usuń")
             del_action = QAction(del_text, self)
             del_action.triggered.connect(self.delete_selected_transaction)
             menu.addAction(del_action)
         else:
-            # Jeśli miesiąc zablokowany, opcjonalnie możesz dodać informację
             lock_info = QAction(_("🔒 Miesiąc zablokowany"), self)
             lock_info.setEnabled(False)
             menu.addAction(lock_info)
 
-        # Wyświetlenie menu w miejscu kliknięcia
         if not menu.isEmpty():
             menu.exec(self.table.viewport().mapToGlobal(position))
 
@@ -1212,7 +1074,6 @@ class BudgetApp(QMainWindow):
         if not data:
             return
 
-        # Rozpoznajemy format po "magicznych bajtach"
         suffix = ".bin"
         if data.startswith(b"%PDF"):
             suffix = ".pdf"
@@ -1220,26 +1081,20 @@ class BudgetApp(QMainWindow):
             suffix = ".png"
         elif data.startswith(b"\xff\xd8"):
             suffix = ".jpg"
-
         try:
-            # Tworzymy plik tymczasowy w standardowym /tmp/
             tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             tmp_file.write(data)
             tmp_path = tmp_file.name
             tmp_file.close()
 
-            # Otwieranie systemowe
-            if os.name == 'nt': # Windows (nt)
+            if os.name == 'nt':
                 os.startfile(tmp_path)
-            else: # Linux / Arch
-                # --- KLUCZOWY FIX DLA PYINSTALLERA ---
-                # Tworzymy kopię środowiska systemowego i usuwamy z niej ścieżki PyInstallera
+            else:
                 env = dict(os.environ)
                 env.pop('LD_LIBRARY_PATH', None)
                 env.pop('QT_PLUGIN_PATH', None)
                 env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
 
-                # Odpalamy xdg-open z czystym środowiskiem systemowym
                 subprocess.Popen(['xdg-open', tmp_path], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         except Exception as e:
@@ -1255,7 +1110,6 @@ class BudgetApp(QMainWindow):
             QMessageBox.warning(self, _("Błąd"), _("Nie znaleziono załącznika dla tej transakcji."))
             return
 
-        # --- INTELIGENTNE WYKRYWANIE FORMATU ---
         suffix = ".bin"
         file_filter = "Plik binarny (*.bin)"
 
@@ -1269,20 +1123,17 @@ class BudgetApp(QMainWindow):
             suffix = ".jpg"
             file_filter = "Obraz JPG (*.jpg)"
 
-        # Sugerowana nazwa pliku z odpowiednim rozszerzeniem
         suggested_filename = f"potwierdzenie_{tid}{suffix}"
         default_path = os.path.join(os.path.expanduser("~"), suggested_filename)
 
-        # Wyświetlenie okna zapisu z predefiniowanym filtrem
         dialog = QFileDialog(self)
         dialog.setWindowTitle(_("Zapisz potwierdzenie"))
         dialog.setDirectory(os.path.dirname(default_path))
         dialog.selectFile(os.path.basename(default_path))
         dialog.setNameFilters([file_filter])
         dialog.setFileMode(QFileDialog.AnyFile)
-        dialog.setAcceptMode(QFileDialog.AcceptSave) # Tryb zapisu pliku
+        dialog.setAcceptMode(QFileDialog.AcceptSave)
 
-        # Wymuszamy natywne okno systemowe zapisu pliku
         dialog.setOption(QFileDialog.DontUseNativeDialog, False)
 
         path = ""
@@ -1292,7 +1143,6 @@ class BudgetApp(QMainWindow):
                 path = selected_files[0]
 
         if path:
-            # Zabezpieczenie: jeśli użytkownik usunął rozszerzenie w nazwie pliku, dodajemy je
             if not path.lower().endswith(suffix):
                 path += suffix
 
@@ -1304,7 +1154,6 @@ class BudgetApp(QMainWindow):
                 QMessageBox.warning(self, _("Błąd"), _("Nie udało się zapisać pliku: {}").format(str(e)))
 
     def run_guide_with_confirm(self):
-        # Zapytanie przed startem
         msg = QMessageBox(self)
         msg.setWindowTitle(_("Przewodnik"))
         msg.setText(_("Czy chcesz uruchomić interaktywny przewodnik po funkcjach?"))
@@ -1314,15 +1163,22 @@ class BudgetApp(QMainWindow):
 
         if msg.exec() == QMessageBox.Yes:
             from dialogs import AppGuide
-            # Ważne: przypisujemy do self, żeby obiekt nie został usunięty z pamięci
             self.active_guide = AppGuide(self)
             self.active_guide.start()
 
+    def open_bug_report_dialog(self):
+        from dialogs import BugReportDialog
+        dialog = BugReportDialog(self)
+        dialog.exec()
 
     def setup_footer(self):
+        import random
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QStackedWidget
+
         footer_widget = QWidget()
         footer_layout = QHBoxLayout(footer_widget)
-        footer_layout.setContentsMargins(10, 5, 10, 5) # Mały margines boczny
+        footer_layout.setContentsMargins(10, 5, 10, 5)
 
         footer_item_style = """
             QLabel {
@@ -1336,32 +1192,103 @@ class BudgetApp(QMainWindow):
             }
         """
 
-        # Lewa strona
+        self.tips_pool = [
+            "🧠 <b>Zasada 24h:</b> Odczekaj dobę przed zakupem powyżej 100 zł.",
+            "🔋 <b>Subskrypcje:</b> Sprawdź usługi, których już nie używasz.",
+            "🛒 <b>Lista zakupów:</b> Zakupy z listą pomagają ograniczyć impulsywne wydatki.",
+            "🍽️ <b>Jedzenie:</b> Gotowanie w domu znacząco obniża miesięczne koszty.",
+            "🚲 <b>Transport:</b> Krótkie trasy rowerem lub pieszo oszczędzają paliwo.",
+            "📉 <b>Małe wydatki:</b> Codzienna kawa na mieście to nawet kilkaset zł rocznie.",
+            "🔌 <b>Prąd:</b> Wyłączanie stand-by zmniejsza rachunki za energię.",
+            "📦 <b>Promocje:</b> Produkty trwałe warto kupować podczas dużych wyprzedaży.",
+            "📅 <b>Rachunki:</b> Opłacaj je zaraz po wypłacie, by uniknąć chaosu.",
+            "🎁 <b>Prezenty:</b> Kupowanie poza sezonem często oznacza niższe ceny.",
+
+            "💧 <b>Woda:</b> Krótszy prysznic to mniejsze rachunki każdego miesiąca.",
+            "📱 <b>Telefon:</b> Porównaj abonament — często przepłacamy za internet.",
+            "💳 <b>Karta:</b> Płać kartą świadomie — łatwiej traci się kontrolę niż przy gotówce.",
+            "🏦 <b>Oszczędności:</b> Odkładaj pieniądze od razu po wpływie wypłaty.",
+            "🧾 <b>Paragony:</b> Analiza wydatków pomaga znaleźć ukryte koszty.",
+            "🥡 <b>Lunch:</b> Zabieranie jedzenia do pracy daje duże oszczędności.",
+            "🚗 <b>Auto:</b> Regularne ciśnienie w oponach zmniejsza spalanie.",
+            "📺 <b>Streaming:</b> Jedna platforma naraz często w zupełności wystarcza.",
+            "🛍️ <b>Promocje:</b> Zniżka nie jest oszczędnością, jeśli zakup był zbędny.",
+            "📚 <b>Biblioteka:</b> Wypożyczanie książek i ebooków ogranicza wydatki.",
+
+            "☕ <b>Kawa:</b> Domowa kawa potrafi zaoszczędzić setki złotych rocznie.",
+            "🕯️ <b>Światło:</b> Gaś światło w pustych pomieszczeniach.",
+            "🥶 <b>Lodówka:</b> Nie wkładaj ciepłych potraw — urządzenie zużywa więcej prądu.",
+            "🧹 <b>Porządki:</b> Regularne sprawdzanie zapasów ogranicza marnowanie jedzenia.",
+            "📈 <b>Budżet:</b> Nawet prosty miesięczny limit poprawia kontrolę finansów.",
+            "🎯 <b>Cele:</b> Łatwiej oszczędzać, gdy masz konkretny cel.",
+            "🧠 <b>Impulsy:</b> Unikaj zakupów pod wpływem stresu lub emocji.",
+            "🪙 <b>Końcówki:</b> Zaokrąglanie wydatków do pełnych kwot pomaga odkładać drobne.",
+            "🏷️ <b>Porównania:</b> Zawsze sprawdzaj ceny w kilku sklepach.",
+            "🌱 <b>Minimalizm:</b> Kupowanie mniej często oznacza większą satysfakcję.",
+
+            "🧊 <b>Zamrażarka:</b> Mrożenie nadmiaru jedzenia pomaga ograniczyć straty.",
+            "🧼 <b>Chemia domowa:</b> Większe opakowania często wychodzą taniej.",
+            "🚌 <b>Komunikacja:</b> Bilet miesięczny może być tańszy niż codzienne przejazdy.",
+            "📆 <b>Planowanie:</b> Zaplanowane wydatki rzadziej wymykają się spod kontroli.",
+            "🛏️ <b>Sen:</b> Zmęczenie sprzyja impulsywnym zakupom.",
+            "🧃 <b>Napoje:</b> Własna butelka na wodę ogranicza niepotrzebne wydatki.",
+            "🏷️ <b>Marki własne:</b> Produkty marek sklepowych bywają równie dobre i tańsze.",
+            "📦 <b>Dostawy:</b> Łączenie zakupów online zmniejsza koszty przesyłek.",
+            "🪫 <b>Bateria:</b> Tryb oszczędzania energii wydłuża życie urządzeń.",
+            "💡 <b>LED:</b> Żarówki LED zużywają znacznie mniej prądu.",
+
+            "📉 <b>Inflacja:</b> Regularnie analizuj wydatki — ceny zmieniają się szybciej niż myślisz.",
+            "🧺 <b>Pranie:</b> Pełna pralka to mniejsze zużycie wody i prądu.",
+            "🚶 <b>Spacer:</b> Spacer zamiast galerii handlowej pomaga ograniczyć pokusy zakupowe.",
+            "🍲 <b>Meal prep:</b> Planowanie posiłków zmniejsza wydatki na jedzenie.",
+            "🧠 <b>Nawyki:</b> Nawet małe oszczędności budują duże efekty w czasie.",
+            "📊 <b>Statystyki:</b> Regularne śledzenie wydatków poprawia kontrolę finansów.",
+            "🛒 <b>Zakupy online:</b> Usuń zapisane karty, by ograniczyć impulsywne zakupy.",
+            "⏰ <b>Czas:</b> Zakupy robione w pośpiechu zwykle kosztują więcej.",
+            "📅 <b>Abonamenty:</b> Raz w miesiącu sprawdź aktywne subskrypcje i usługi.",
+            "🏠 <b>Dom:</b> Drobne naprawy wykonywane od razu zapobiegają większym kosztom później.",
+
+            "💰 <b>Gotówka:</b> Ustal tygodniowy limit wydatków i trzymaj się go.",
+            "📱 <b>Powiadomienia:</b> Wyłącz reklamy sklepów, by ograniczyć pokusy zakupowe.",
+            "🛠️ <b>Naprawa:</b> Czasem warto naprawić zamiast kupować nowe.",
+            "🎟️ <b>Promocje:</b> Korzystaj z kuponów tylko na rzeczy, które i tak planowałeś kupić.",
+            "🚿 <b>Łazienka:</b> Zakręcanie wody podczas mycia zębów obniża rachunki.",
+            "🍞 <b>Jedzenie:</b> Nie rób zakupów spożywczych będąc głodnym.",
+            "📦 <b>Paczki:</b> Darmowa dostawa nie zawsze oznacza dobrą okazję.",
+            "🧾 <b>Budżet:</b> Najlepszy budżet to taki, którego naprawdę używasz.",
+            "🎮 <b>Rozrywka:</b> Darmowe aktywności też mogą dawać dużo satysfakcji.",
+            "📚 <b>Rozwój:</b> Wiedza finansowa często zwraca się najlepiej.",
+        ]
+
         lbl_version = QLabel(f"v {WERSJA}")
         lbl_version.setStyleSheet(footer_item_style)
 
         self.btn_help = QPushButton("?", self)
-        self.btn_help.setFixedSize(24, 24) # Ujednolicone z przyciskiem flagi
+        self.btn_help.setFixedSize(24, 24)
+
         self.btn_help.setToolTip(_("Uruchom interaktywny przewodnik"))
+
         self.btn_help.setStyleSheet("""
             QPushButton {
                 border: none;
                 background: transparent;
-                color: #3498db;              /* Zachowujemy niebieski kolor, by sugerował pomoc */
+                color: #3498db;
                 font-weight: bold;
                 font-size: 14px;
                 padding: 0px;
             }
+
             QPushButton:hover {
-                background-color: rgba(52, 152, 219, 0.1); /* Bardzo jasny niebieski hover */
-                border: 1px solid #3498db;                /* Ramka w kolorze pomocy */
-                border-radius: 5px;                       /* Prostokątny kształt jak reszta */
+                background-color: rgba(52, 152, 219, 0.1);
+                border: 1px solid #3498db;
+                border-radius: 5px;
             }
         """)
+
         self.btn_help.clicked.connect(self.run_guide)
 
-        # --- ŚRODEK: PODSUMOWANIE FILTROWANIA (Większa czcionka) ---
         self.filter_summary_label = QLabel("")
+
         self.filter_summary_label.setStyleSheet("""
             QLabel {
                 font-size: 12px;
@@ -1373,27 +1300,70 @@ class BudgetApp(QMainWindow):
                 background-color: palette(alternate-base);
             }
         """)
-        self.filter_summary_label.setAlignment(Qt.AlignCenter)
-        self.filter_summary_label.hide()
 
-        # Prawa strona
+        self.filter_summary_label.setAlignment(Qt.AlignCenter)
+
+        self.tips_label = QLabel()
+
+        self.tips_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: gray;
+                padding: 3px 10px;
+            }
+        """)
+
+        self.tips_label.setAlignment(Qt.AlignCenter)
+
+        self.footer_stack = QStackedWidget()
+
+        self.footer_stack.addWidget(self.tips_label)
+        self.footer_stack.addWidget(self.filter_summary_label)
+
+        self.remaining_tips = self.tips_pool.copy()
+
+        random.shuffle(self.remaining_tips)
+
+        def rotate_tip():
+
+            if self.footer_stack.currentWidget() != self.tips_label:
+                return
+
+            if not self.remaining_tips:
+                self.remaining_tips = self.tips_pool.copy()
+                random.shuffle(self.remaining_tips)
+
+            next_tip = self.remaining_tips.pop()
+
+            self.tips_label.setText(next_tip)
+
+        self.rotate_tip = rotate_tip
+        self.tip_timer = QTimer(self)
+        self.tip_timer.timeout.connect(self.rotate_tip)
+        self.tip_timer.start(30000)
+
         current_year = datetime.now().year
         year_str = f"2025 - {current_year}" if current_year > 2025 else "2025"
+
         lbl_copy = QLabel(f"© {PRODUCENT} {year_str}")
         lbl_copy.setStyleSheet(footer_item_style)
 
-        # Układanie (Stretch między elementami zapewnia centrowanie środka)
         footer_layout.addWidget(lbl_version)
         footer_layout.addWidget(self.btn_help)
-        footer_layout.addStretch(1) # Pcha środek na środek
-        footer_layout.addWidget(self.filter_summary_label)
-        footer_layout.addStretch(1) # Pcha środek na środek
+
+        footer_layout.addStretch(1)
+
+        footer_layout.addWidget(self.footer_stack)
+
+        footer_layout.addStretch(1)
+
         footer_layout.addWidget(lbl_copy)
 
         self.main_layout.addWidget(footer_widget)
 
+        self.footer_stack.setCurrentWidget(self.tips_label)
+
     def get_current_month_str(self):
-        # Pobieramy wartości bezpośrednio ze zmiennych obiektu, a nie z widżetów
         return f"{self.current_year}-{self.current_month:02d}"
 
     def update_monthly_label(self, year, month):
@@ -1403,7 +1373,6 @@ class BudgetApp(QMainWindow):
             9: "Wrzesień", 10: "Październik", 11: "Listopad", 12: "Grudzień"
         }
         month_name = months_pl.get(int(month), "")
-        # Ustawiamy tekst nagłówka
         self.lbl_monthly_cat_head.setText(_("Struktura wydatków ({} {}):").format(month_name, year))
 
     def toggle_month_lock(self):
@@ -1420,15 +1389,12 @@ class BudgetApp(QMainWindow):
         alerts = []
 
         for b in bills:
-            # --- ZMIANA TUTAJ: Dodane is_rec na końcu, żeby odebrać 7 elementów z bazy ---
             b_id, d_date, amt, cat, desc, is_rec, _ = b
 
             due = QDate.fromString(d_date, "yyyy-MM-dd")
             days = today.daysTo(due)
 
-            # --- LOGIKA POWIADOMIEŃ HTML ---
             if days < 0:
-                # Wyliczamy ile dni minęło od terminu
                 days_overdue = abs(days)
                 alerts.append(f"<span style='color: #e74c3c; font-size: 14px; font-weight: bold;'>❌ ZALEGŁY: {desc} ({cat}) - {amt:.2f} zł! ({days_overdue} dni po terminie)</span>")
             elif days == 0:
@@ -1439,7 +1405,6 @@ class BudgetApp(QMainWindow):
                 alerts.append(f"<span style='color: #e67e22; font-weight: bold; font-size: 12px;'>⚠️ Za {days} dni: {desc} ({cat}) - {amt:.2f} zł.</span>")
             elif 4 <= days <= 7:
                 alerts.append(f"<span style='color: #3498db; font-weight: normal; font-size: 12px;'>ℹ️ Zbliża się (za {days} dni): {desc} ({cat}) - {amt:.2f} zł.</span>")
-            # -------------------------------
 
         if alerts:
             self.lbl_bills_alert.setText("<br>".join(alerts))
@@ -1448,7 +1413,7 @@ class BudgetApp(QMainWindow):
             self.lbl_bills_alert.hide()
 
     def open_account_history(self, account_id, account_name):
-        from dialogs import AccountHistoryDialog # Upewnij się, że tam jest klasa
+        from dialogs import AccountHistoryDialog
         self.current_account_history_dialog = AccountHistoryDialog(self, self.db, account_id, account_name)
         self.current_account_history_dialog.exec()
         self.current_account_history_dialog = None
@@ -1466,14 +1431,12 @@ class BudgetApp(QMainWindow):
         self.open_account_history(account_id, account_name)
 
     def show_debt_details(self, d_id, d_type):
-        """Otwiera okno ze szczegółami długu/dłużnika i załącznikiem w spójnym stylu."""
         if d_type == 'lia':
             data = self.db.get_liability_full_info(d_id)
             title = _("Szczegóły Długu")
         else:
             data = self.db.get_debtor_full_info(d_id)
             title = _("Szczegóły Dłużnika")
-
         if not data: return
 
         from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
@@ -1482,7 +1445,6 @@ class BudgetApp(QMainWindow):
         dlg.setMinimumWidth(380)
         v_layout = QVBoxLayout(dlg)
 
-        # --- STYLE PRZYCISKÓW (Zgodne z Twoją aplikacją) ---
         main_btn_base = """
             QPushButton {
                 font-size: 12px; font-weight: bold; padding: 5px 15px; border-radius: 6px;
@@ -1499,7 +1461,6 @@ class BudgetApp(QMainWindow):
             QPushButton:hover { background-color: #7f8c8d; color: #ffffff; }
         """
 
-        # Treść informacyjna
         info = (f"<div style='margin-bottom: 10px;'>"
                 f"<p><b>{_('Osoba/Firma')}:</b> {data['name']}</p>"
                 f"<p><b>{_('Kwota całkowita')}:</b> {data['total']:.2f} zł</p>"
@@ -1510,11 +1471,9 @@ class BudgetApp(QMainWindow):
         lbl_info.setStyleSheet("font-size: 13px;")
         v_layout.addWidget(lbl_info)
 
-        # Kontener na przyciski
         h_btns = QHBoxLayout()
         h_btns.setSpacing(10)
 
-        # --- LOGIKA PRZYCISKÓW (ZAŁĄCZNIK I ZAMKNIJ) ---
         has_attachment = bool(data.get('attachment'))
 
         if has_attachment:
@@ -1529,13 +1488,11 @@ class BudgetApp(QMainWindow):
 
         btn_view.setStyleSheet(blue_style)
 
-        # Przycisk Zamknij
         btn_ok = QPushButton(_("Zamknij"))
         btn_ok.setStyleSheet(gray_style)
         btn_ok.setCursor(Qt.PointingHandCursor)
         btn_ok.clicked.connect(dlg.accept)
 
-        # Układanie przycisków w poziomie
         h_btns = QHBoxLayout()
         h_btns.addWidget(btn_view)
         h_btns.addStretch()
@@ -1544,11 +1501,14 @@ class BudgetApp(QMainWindow):
         v_layout.addLayout(h_btns)
         dlg.exec()
 
+    def open_forecast_dialog(self):
+        from dialogs import ForecastDialog
+        dlg = ForecastDialog(self, self.db)
+        dlg.exec()
+
     def open_attachment_by_filename(self, filename):
-        """Wczytuje plik z folderu attachments i otwiera go w systemie."""
         import os, tempfile, subprocess
 
-        # 1. Budujemy ścieżkę do pliku w Twoim folderze attachments
         file_path = os.path.join(self.db.attachments_dir, filename)
 
         if not os.path.exists(file_path):
@@ -1557,16 +1517,13 @@ class BudgetApp(QMainWindow):
             return
 
         try:
-            # 2. Wczytujemy bajty, żeby rozpoznać format
             with open(file_path, "rb") as f:
                 blob_data = f.read()
 
-            # 3. Rozpoznawanie formatu (tak jak miałeś wcześniej)
             ext = ".pdf"
             if blob_data.startswith(b'\xff\xd8'): ext = ".jpg"
             elif blob_data.startswith(b'\x89PNG'): ext = ".png"
 
-            # 4. Zrzucamy do pliku tymczasowego z poprawnym rozszerzeniem i otwieramy
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
                 tmp.write(blob_data)
                 p = tmp.name
@@ -1591,11 +1548,14 @@ class BudgetApp(QMainWindow):
         self.table.setUpdatesEnabled(False)
         if hasattr(self, 'update_timer'): self.update_timer.stop()
         try:
-            # --- LOGIKA SYSTEMU TYGODNIOWEGO ---
             weekly_system_on = self.db.is_weekly_system_enabled()
-            weekly_view_active = self.weekly_widget.isVisible()
-            if weekly_system_on and not self.monthly_widget.isVisible():
+
+            if weekly_system_on:
+                self.view_stack.setCurrentWidget(self.weekly_widget)
                 weekly_view_active = True
+            else:
+                self.view_stack.setCurrentWidget(self.monthly_widget)
+                weekly_view_active = False
 
             if weekly_view_active:
                 self.active_filter_cat = None
@@ -1606,7 +1566,6 @@ class BudgetApp(QMainWindow):
             search = self.search_bar.text().lower().strip()
             is_searching = bool(search)
 
-            # --- OBLICZANIE DAT TYGODNIA ---
             today_real = datetime.now().date()
             target_date = today_real + timedelta(weeks=self.week_offset)
             start_of_displayed_week = target_date - timedelta(days=target_date.weekday())
@@ -1632,7 +1591,6 @@ class BudgetApp(QMainWindow):
             elif refresh_panel:
                 self.update_weekly_stats(False, 0, None)
 
-            # --- WYSZUKIWARKA I BLOKADA MIESIĄCA ---
             search_amount = None
             if is_searching:
                 for i, n in enumerate(MONTH_NAME):
@@ -1666,6 +1624,87 @@ class BudgetApp(QMainWindow):
             accounts_data = self.db.get_accounts()
             account_names = {acc[0]: acc[1] for acc in accounts_data}
             account_colors = {a[0]: a[3] for a in accounts_data}
+            goal_variants = self.db.get_all_goal_subcategory_variants()
+
+            def is_legacy_goal_transaction(ttype, tsub):
+                return ttype in ['savings', 'savings_migration'] and tsub in goal_variants
+
+            def is_goal_transaction(ttype, tsub):
+                return ttype == 'goal_deposit' or is_legacy_goal_transaction(ttype, tsub)
+
+            def is_regular_savings_transaction(ttype, tsub):
+                return ttype in ['savings', 'savings_migration'] and not is_legacy_goal_transaction(ttype, tsub)
+
+            def calculate_monthly_savings_bucket(records):
+                bucket = 0.0
+                for record in sorted(records, key=lambda x: (x[1], x[0])):
+                    amount = record[5]
+                    if amount >= 0:
+                        bucket += amount
+                    else:
+                        bucket = max(0.0, bucket + amount)
+                return bucket
+
+            def extract_savings_account_name(record):
+                details = (record[6] or "").strip()
+                fallback_name = account_names.get(record[8], _("Nieznane"))
+
+                deposit_marker = _("Odłożono na:")
+                withdrawal_marker = _("Pobrano z oszczędności na")
+
+                if deposit_marker in details:
+                    tail = details.split(deposit_marker, 1)[1].strip()
+                elif withdrawal_marker in details:
+                    tail = details.split(withdrawal_marker, 1)[1].strip()
+                else:
+                    return fallback_name
+
+                extracted_name = tail.split(".", 1)[0].strip()
+                return extracted_name if extracted_name else fallback_name
+
+            def calculate_monthly_savings_distribution(records):
+                lots = []
+                activity_names = set()
+
+                for record in sorted(records, key=lambda x: (x[1], x[0])):
+                    amount = record[5]
+                    savings_account_name = extract_savings_account_name(record)
+                    activity_names.add(savings_account_name)
+
+                    if amount >= 0:
+                        lots.append({"account": savings_account_name, "remaining": amount})
+                        continue
+
+                    remaining = abs(amount)
+
+                    for lot in lots:
+                        if remaining <= 0:
+                            break
+                        if lot["remaining"] <= 0 or lot["account"] != savings_account_name:
+                            continue
+
+                        taken = min(remaining, lot["remaining"])
+                        lot["remaining"] -= taken
+                        remaining -= taken
+
+                    if remaining > 0:
+                        for lot in lots:
+                            if remaining <= 0:
+                                break
+                            if lot["remaining"] <= 0:
+                                continue
+
+                            taken = min(remaining, lot["remaining"])
+                            lot["remaining"] -= taken
+                            remaining -= taken
+
+                distribution = {}
+                for lot in lots:
+                    if lot["remaining"] <= 0:
+                        continue
+                    distribution[lot["account"]] = distribution.get(lot["account"], 0.0) + lot["remaining"]
+
+                return distribution, activity_names
 
             stats_inc = stats_exp = stats_sav = stats_lia = stats_deb = 0.0
             inc_map = {}
@@ -1694,7 +1733,7 @@ class BudgetApp(QMainWindow):
                     elif ttype == "expense":
                         stats_exp += tamt
                         exp_map[tcat] = exp_map.get(tcat, 0) + tamt
-                    elif ttype in ["savings", "savings_migration", "goal_deposit"]:
+                    elif is_regular_savings_transaction(ttype, tsub):
                         total_monthly_savings_all += tamt
                         monthly_cash_savings_net += tamt
                     elif ttype == "liability_repayment":
@@ -1721,7 +1760,9 @@ class BudgetApp(QMainWindow):
                             show = True
                         elif ttype == 'liability_repayment' and _("Spłata: {}").format(tsub) == self.active_filter_cat:
                             show = True
-                        elif ttype in ['savings', 'savings_migration', 'goal_deposit'] and _("Oszczędności") == self.active_filter_cat:
+                        elif is_regular_savings_transaction(ttype, tsub) and _("Oszczędności") == self.active_filter_cat:
+                            show = True
+                        elif is_goal_transaction(ttype, tsub) and _("Cele") == self.active_filter_cat:
                             show = True
 
                 if show:
@@ -1752,9 +1793,10 @@ class BudgetApp(QMainWindow):
                 set_c(0, tid)
                 set_c(1, tdate)
 
-                base_cat = _("Oszczędności") if ttype in ['savings', 'savings_migration'] else \
+                base_cat = _("Oszczędności") if is_regular_savings_transaction(ttype, tsub) else \
+                           (_("Cele") if is_goal_transaction(ttype, tsub) else \
                            (_("Spłata Długu") if ttype == 'liability_repayment' else \
-                           (_("Zwrot od Dłużnika") if ttype == 'debtor_repayment' else tcat))
+                           (_("Zwrot od Dłużnika") if ttype == 'debtor_repayment' else tcat)))
 
                 acc_name = account_names.get(t_acc_id, _("Nieznane"))
                 acc_color = account_colors.get(t_acc_id, "#7f8c8d")
@@ -1764,7 +1806,10 @@ class BudgetApp(QMainWindow):
                 display_sub = _("Migracja oszczędności") if ttype == 'savings_migration' else tsub
                 set_c(3, display_sub)
 
-                t_clr = "#27ae60" if ttype == "income" else ("#c0392b" if ttype == "expense" else ("#d35400" if ttype == "debtor_repayment" else "#2980b9"))
+                if is_goal_transaction(ttype, tsub):
+                    t_clr = "#c0392b" if tamt >= 0 else "#27ae60"
+                else:
+                    t_clr = "#27ae60" if ttype == "income" else ("#c0392b" if ttype == "expense" else ("#d35400" if ttype == "debtor_repayment" else "#2980b9"))
                 set_c(4, f"{tamt:.2f}", t_clr)
 
                 clean_details = tdetails.strip().replace("\n", ", ") if tdetails else ""
@@ -1796,14 +1841,14 @@ class BudgetApp(QMainWindow):
                 acc_history = [r for r in rows if r[8] == acc_id]
 
                 acc_inc = sum(r[5] for r in acc_history if r[2] in ['income', 'debtor_repayment'])
-                acc_exp = sum(r[5] for r in acc_history if r[2] in ['expense', 'liability_repayment', 'savings'])
+                acc_exp = sum(r[5] for r in acc_history if r[2] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
 
                 acc_bal = initial_bal + acc_inc - acc_exp
                 current_total_bal += acc_bal
 
                 hist_before = [r for r in acc_history if r[1] < first_day_of_month]
                 p_inc = sum(r[5] for r in hist_before if r[2] in ['income', 'debtor_repayment'])
-                p_exp = sum(r[5] for r in hist_before if r[2] in ['expense', 'liability_repayment', 'savings'])
+                p_exp = sum(r[5] for r in hist_before if r[2] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
 
                 acc_prev_bal = initial_bal + p_inc - p_exp
                 total_prev_bal += acc_prev_bal
@@ -1831,16 +1876,7 @@ class BudgetApp(QMainWindow):
                 acc_btn.clicked.connect(self._open_account_history_from_sender)
                 self.accounts_balances_layout.addWidget(acc_btn)
 
-                raw_sav_month = sum(r[5] for r in acc_history if r[2] in ['savings', 'savings_migration', 'goal_deposit'] and r[1].startswith(m_str))
-                acc_sav_month = max(0.0, raw_sav_month)
-                if abs(acc_sav_month) > 0.001:
-                    sm_lbl = QLabel(f"{acc_name}: {acc_sav_month:.2f} zł")
-                    sm_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    sm_lbl.setContentsMargins(0, 0, 0, 0)
-                    sm_lbl.setStyleSheet("font-size: 11px; color: #2874A6; margin-right: 0px;")
-                    self.savings_month_details_layout.addWidget(sm_lbl)
-
-                acc_sav_total = sum(r[5] for r in acc_history if r[2] in ['savings', 'savings_migration', 'goal_deposit'])
+                acc_sav_total = sum(r[5] for r in acc_history if is_regular_savings_transaction(r[2], r[4]))
                 if abs(acc_sav_total) > 0.001:
                     st_lbl = QLabel(f"   • {acc_name}: <b>{acc_sav_total:.2f} zł</b>")
                     st_lbl.setStyleSheet("font-size: 12px; color: #21618C;")
@@ -1854,20 +1890,33 @@ class BudgetApp(QMainWindow):
             final_sav_total = self.db.get_total_savings_cash_pln()
             final_sav_total = final_sav_total if abs(final_sav_total) > 0.001 else 0.0
 
-            # --- POJEDYNCZA ETYKIETA BEZ MIGRACJI OSZCZĘDNOŚCI ---
             month_records = [
                 r for r in rows
-                if r[1].startswith(m_str) and r[2] in ['savings', 'goal_deposit']
+                if r[1].startswith(m_str) and r[2] == 'savings' and not is_legacy_goal_transaction(r[2], r[4])
             ]
             deposits = sum(r[5] for r in month_records if r[5] > 0)
             withdrawals = abs(sum(r[5] for r in month_records if r[5] < 0))
-            net_savings = deposits - withdrawals
+            month_distribution, month_activity_names = calculate_monthly_savings_distribution(month_records)
+            net_savings = sum(month_distribution.values())
+
+            ordered_month_names = [acc[1] for acc in accounts_data]
+            extra_month_names = sorted(n for n in month_activity_names if n not in ordered_month_names)
+
+            for acc_name in ordered_month_names + extra_month_names:
+                if acc_name not in month_activity_names:
+                    continue
+
+                acc_sav_month = month_distribution.get(acc_name, 0.0)
+                sm_lbl = QLabel(f"{acc_name}: {acc_sav_month:.2f} zł")
+                sm_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                sm_lbl.setContentsMargins(0, 0, 0, 0)
+                sm_lbl.setStyleSheet("font-size: 11px; color: #2874A6; margin-right: 0px;")
+                self.savings_month_details_layout.addWidget(sm_lbl)
 
             self.lbl_savings_month.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.lbl_savings_month.setText(
                 _("Oszczędności (ten msc): {:.2f} zł<br><span style='font-size: 9pt; font-weight: normal;'>Wpłaty {:.2f} zł - Wypłaty {:.2f} zł</span>").format(net_savings, deposits, withdrawals)
             )
-            # --------------------------------------------------------
 
             self.lbl_savings_total.setText(_("OSZCZĘDNOŚCI ŁĄCZNIE: {:.2f} zł").format(final_sav_total))
 
@@ -2001,7 +2050,7 @@ class BudgetApp(QMainWindow):
             if is_searching or self.active_filter_cat or self.weekly_filter_cat:
                 f_inc = sum(r[5] for r in filtered_data if r[2] in ['income', 'debtor_repayment'])
                 f_exp = sum(r[5] for r in filtered_data if r[2] in ['expense', 'liability_repayment'])
-                f_sav = sum(r[5] for r in filtered_data if r[2] in ['savings', 'savings_migration', 'goal_deposit'])
+                f_sav = sum(r[5] for r in filtered_data if is_regular_savings_transaction(r[2], r[4]))
 
                 f_diff = f_inc - (f_exp + f_sav)
                 count = len(filtered_data)
@@ -2022,9 +2071,10 @@ class BudgetApp(QMainWindow):
                     summary_parts.append(f"<b>{_('Bilans')}: <span style='color:{diff_col};'>{f_diff:.2f}</span></b>")
 
                 self.filter_summary_label.setText(" | ".join(summary_parts))
-                self.filter_summary_label.show()
+                self.footer_stack.setCurrentWidget(self.filter_summary_label)
             else:
-                self.filter_summary_label.hide()
+                self.rotate_tip()
+                self.footer_stack.setCurrentWidget(self.tips_label)
         finally:
             self.table.blockSignals(False)
             self.table.setUpdatesEnabled(True)
@@ -2033,18 +2083,9 @@ class BudgetApp(QMainWindow):
                 self._pending_refresh = False
                 self.update_timer.start(0)
 
-            # Pokaż okno, jeśli jest ukryte po starcie
             if not self.isVisible():
                 self.show()
 
-    #def on_chart_pick(self, event):
-        #pass
-
-    #def _process_delayed_click_logic(self):
-        #pass
-
-    #def _execute_safe_chart_update(self):
-        #pass
 
     def delete_selected_transaction(self):
         if self.db.is_month_locked(self.get_current_month_str()): return
@@ -2057,41 +2098,33 @@ class BudgetApp(QMainWindow):
             self.schedule_update()
 
     def toggle_accounts_visibility(self):
-        """Przełącza widoczność listy kont po kliknięciu w saldo."""
         is_visible = self.accounts_container.isVisible()
         self.accounts_container.setVisible(not is_visible)
         self.save_dashboard_visibility()
 
     def toggle_savings_visibility(self):
-        """Przełącza widoczność rozbicia oszczędności na konta."""
         is_visible = self.savings_total_container.isVisible()
         self.savings_total_container.setVisible(not is_visible)
         self.save_dashboard_visibility()
 
     def toggle_savings_month_visibility(self):
-        """Przełącza widoczność rozbicia oszczędności z bieżącego miesiąca."""
         is_visible = self.savings_month_container.isVisible()
         self.savings_month_container.setVisible(not is_visible)
         self.save_dashboard_visibility()
 
     def toggle_prev_balance_visibility(self):
-        """Przełącza widoczność rozbicia salda z poprzedniego okresu."""
         is_visible = self.prev_balance_container.isVisible()
         self.prev_balance_container.setVisible(not is_visible)
         self.save_dashboard_visibility()
 
     def save_dashboard_visibility(self):
-        """Zapisuje aktualny stan zwinięcia sekcji do QSettings."""
         self.settings.setValue("dash_acc_vis", self.accounts_container.isVisible())
         self.settings.setValue("dash_prev_vis", self.prev_balance_container.isVisible())
         self.settings.setValue("dash_sav_t_vis", self.savings_total_container.isVisible())
         self.settings.setValue("dash_sav_m_vis", self.savings_month_container.isVisible())
 
-    # --- POPRAWIONE FUNKCJE Z BEZPIECZNIKIEM PAMIĘCI ---
-
     def open_income_dialog(self):
         from dialogs import IncomeDialog
-        # ZMIANA: Przypisujemy do self.current_dialog, żeby obiekt nie wyparował
         self.current_dialog = IncomeDialog(self, self.db)
         if self.current_dialog.exec():
             self.save_transaction(self.current_dialog.get_data())
@@ -2117,11 +2150,8 @@ class BudgetApp(QMainWindow):
                 self.db.add_liability(dat['name'], dat['amount'], dat['deadline'], dat.get('attachment'))
                 QMessageBox.information(self, "OK", _("Zapisano zobowiązanie."))
             else:
-                # --- LOGIKA DOPISKU O ZAKOŃCZENIU ---
                 dodatkowy_opis = ""
-                # Pobieramy ile zostało przed tą wpłatą
                 status = self.db.get_liabilities_status()
-                # Szukamy tego konkretnego długu po ID
                 dane_dlugu = next((d for d in status if d['id'] == dat['ref_id']), None)
 
                 if dane_dlugu:
@@ -2136,7 +2166,7 @@ class BudgetApp(QMainWindow):
                     dat['name'],
                     dat['amount'],
                     0,
-                    dodatkowy_opis, # <--- Wstawiamy nasz dopisek
+                    dodatkowy_opis,
                     dat.get('attachment'),
                     ref_id=dat['ref_id']
                 )
@@ -2156,7 +2186,6 @@ class BudgetApp(QMainWindow):
                 )
                 QMessageBox.information(self, "OK", _("Zapisano dłużnika i dodano wydatek."))
             else:
-                # --- LOGIKA DOPISKU O ZAKOŃCZENIU ---
                 dodatkowy_opis = ""
                 status = self.db.get_debtors_status()
                 dane_dluznika = next((d for d in status if d['id'] == dat['ref_id']), None)
@@ -2173,7 +2202,7 @@ class BudgetApp(QMainWindow):
                     dat['name'],
                     dat['amount'],
                     0,
-                    dodatkowy_opis, # <--- Wstawiamy nasz dopisek
+                    dodatkowy_opis,
                     dat.get('attachment'),
                     ref_id=dat['ref_id'],
                     account_id=dat.get('account_id', 1)
@@ -2194,7 +2223,7 @@ class BudgetApp(QMainWindow):
 
             active_count += 1
 
-            w = QWidget(); v = QVBoxLayout(w); v.setContentsMargins(0, 0, 0, 8); v.setSpacing(2)
+            w = QWidget(); v = QVBoxLayout(w); v.setContentsMargins(0, 6, 0, 6); v.setSpacing(2)
             try:
                 deadline_dt = datetime.strptime(d['deadline'], "%Y-%m-%d").date()
                 delta = (deadline_dt - today).days
@@ -2207,7 +2236,6 @@ class BudgetApp(QMainWindow):
             except: status_text = _("Błąd daty"); col = "gray"; is_overdue=False
 
             h_top = QHBoxLayout()
-            # ZMIANA: Używamy ClickableDebtLabel zamiast zwykłego QLabel
             info_lbl = ClickableDebtLabel(f"• {d['name']}: {rem:.2f} zł", d['id'], 'deb')
             info_lbl.clicked.connect(self.show_debt_details)
             info_lbl.setStyleSheet("font-size: 11px;")
@@ -2223,14 +2251,33 @@ class BudgetApp(QMainWindow):
             btn_del.clicked.connect(lambda ch, did=d['id']: self.delete_debtor(did))
 
             h_top.addWidget(info_lbl); h_top.addStretch(); h_top.addWidget(btn_filter); h_top.addWidget(btn_del)
-            pbar = QProgressBar(); pbar.setFixedHeight(10)
+            pbar = QProgressBar()
+            pbar.setFixedHeight(5)
+
             percent = int((d['paid'] / d['total']) * 100) if d['total'] > 0 else 0
             pbar.setValue(percent)
-            pbar.setStyleSheet(f"QProgressBar {{ border: 1px solid #ccc; border-radius: 4px; background-color: transparent; }} QProgressBar::chunk {{ background-color: #e67e22; border-radius: 3px; }}"); pbar.setTextVisible(False)
-            status_lbl = QLabel(status_text); status_lbl.setStyleSheet(f"font-size: 10px; color: {col}; font-style: italic;")
-            v.addLayout(h_top); v.addWidget(pbar); v.addWidget(status_lbl); self.debtors_layout.addWidget(w)
 
-        # Pokaż ramkę tylko, jeśli ktoś faktycznie jest nam winny kasę
+            pbar.setStyleSheet("""
+                QProgressBar {
+                    border-radius: 2px;
+                }
+
+                QProgressBar::chunk {
+                    background-color: #3498db;
+                    border-radius: 2px;
+                }
+            """)
+
+            pbar.setTextVisible(False)
+
+            status_lbl = QLabel(status_text)
+            status_lbl.setStyleSheet(f"font-size: 10px; color: {col}; font-style: italic;")
+
+            v.addLayout(h_top)
+            v.addWidget(pbar)
+            v.addWidget(status_lbl)
+            self.debtors_layout.addWidget(w)
+
         self.deb_box.setVisible(active_count > 0)
 
     def filter_transactions_by_string(self, text):
@@ -2247,53 +2294,51 @@ class BudgetApp(QMainWindow):
         while True:
             if d.exec():
                 try:
-                    source, target, amount = d.get_data()
-
-                    # --- SPRAWDZENIE DOSTĘPNYCH ŚRODKÓW ---
+                    source, target, amount, account_id = d.get_data()
+                    if source == target:
+                        QMessageBox.warning(self, _("Błąd"), _("Wybierz różne cele źródłowy i docelowy."))
+                        continue
+                    if amount <= 0:
+                        QMessageBox.warning(self, _("Błąd"), _("Wpisz poprawną kwotę (np. 100 lub 50.50)!"))
+                        continue
                     if source == CASH_SAVINGS_NAME:
-                        available = self.db.get_total_savings_cash_pln()
+                        available = self.db.get_total_savings_cash_pln(account_id=account_id)
                     else:
-                        available = self.db.get_savings_total_for_subcat(source)
-
+                        available = self.db.get_savings_total_for_subcat(source, account_id=account_id)
                     if amount > available:
                         QMessageBox.warning(self, _("Błąd kwoty"),
                             _("Nie możesz przenieść {:.2f} zł, ponieważ w '{}' masz tylko {:.2f} zł.").format(amount, source, available))
-                        continue # Pozwala poprawić kwotę w tym samym oknie
+                        continue
 
-                    # Wykonanie transferu
                     dt = QDate.currentDate().toString("yyyy-MM-dd")
-                    self.db.add_transaction(dt, "savings", _("Oszczędności"), source, -amount)
-                    self.db.add_transaction(dt, "savings", _("Oszczędności"), target, amount)
+                    self.db.add_transaction(dt, "savings", _("Oszczędności"), source, -amount, account_id=account_id)
+                    self.db.add_transaction(dt, "savings", _("Oszczędności"), target, amount, account_id=account_id)
 
                     self.schedule_update()
                     QMessageBox.information(self, _("Transfer"), _("Przesunięto {:.2f} zł z '{}' do '{}'.").format(amount, source, target))
-                    break # Wyjście z pętli po sukcesie
+                    break
 
                 except ValueError:
-                    # Wyłapuje puste pole lub błędy formatu
                     QMessageBox.warning(self, _("Błąd"), _("Wpisz poprawną kwotę (np. 100 lub 50.50)!"))
                     continue
             else:
-                break # Użytkownik kliknął Anuluj
+                break
 
     def open_new_goal_dialog(self):
         from dialogs import AddGoalDialog
         d = AddGoalDialog(self, self.db)
         if d.exec():
             try:
-                # get_data() wywali ValueError, jeśli pole kwoty będzie puste
-                name, target = d.get_data()
+                name, target, default_account_id = d.get_data()
 
                 if not name:
                     QMessageBox.warning(self, _("Błąd"), _("Nazwa celu nie może być pusta!"))
                     return
-
-                if self.db.add_goal(name, target):
+                if self.db.add_goal(name, target, default_account_id):
                     self.schedule_update()
                 else:
                     QMessageBox.warning(self, _("Błąd"), _("Taki cel już istnieje!"))
             except ValueError:
-                # To się stanie, gdy użytkownik nic nie wpisze lub wpisze litery zamiast cyfr
                 QMessageBox.warning(self, _("Błąd"), _("Wpisz poprawną kwotę celu!"))
 
     def open_edit_dialog(self):
@@ -2301,11 +2346,9 @@ class BudgetApp(QMainWindow):
         if not selected: return
 
         idx = selected[0].row()
-        # Pobieramy pełne dane wiersza z bazy, żeby mieć has_file dla dialogu
         tid = int(self.table.item(idx, 0).text())
         row_data = None
 
-        # Szukamy danych w załadowanych wierszach (rows)
         for r in self.db.get_all_transactions():
             if r[0] == tid:
                 row_data = r
@@ -2317,11 +2360,10 @@ class BudgetApp(QMainWindow):
         dlg = EditDialog(self, row_data, self.db)
         if dlg.exec():
             d = dlg.get_data()
-            # Naprawione wywołanie:
             self.db.update_transaction(
                 tid,
                 d['date'],
-                row_data[2],   # Pobieramy oryginalny typ (expense/income) z bazy
+                row_data[2],
                 d['category'],
                 d['subcategory'],
                 d['amount'],
@@ -2339,8 +2381,6 @@ class BudgetApp(QMainWindow):
         if data['type'] == 'income':
             self.db.add_person(data['cat'])
 
-        # KLUCZOWA ZMIANA: Dodajemy data.get('account_id', 1)
-        # (1 to domyślnie 'Gotówka' jeśli coś by poszło nie tak)
         self.db.add_transaction(
             data['date'],
             data['type'],
@@ -2350,26 +2390,37 @@ class BudgetApp(QMainWindow):
             data.get('exclude', 0),
             data.get('details', ""),
             data.get('attachment', None),
-            account_id=data.get('account_id', 1)  # <--- TO MUSI TU BYĆ
+            ref_id=data.get('ref_id'),
+            account_id=data.get('account_id', 1)
         )
         self.schedule_update()
+
+    def open_goal_operation_dialog(self):
+        from dialogs import GoalOperationDialog
+
+        if not self.db.get_goals():
+            QMessageBox.warning(self, _("Brak celów"), _("Najpierw dodaj przynajmniej jeden cel."))
+            return
+
+        self.current_dialog = GoalOperationDialog(self, self.db)
+        if self.current_dialog.exec():
+            self.save_transaction(self.current_dialog.get_data())
 
     def open_filter_dialog(self):
         from PySide6.QtWidgets import QMenu
         from PySide6.QtGui import QAction
         from PySide6.QtCore import QPoint
 
-        # --- POBIERANIE KATEGORII (bez zmian) ---
         cats = set(self.db.get_categories())
         cats.update(self.db.get_people())
         cats.add(_("Oszczędności"))
+        cats.add(_("Cele"))
         cats.update(self.db.get_liabilities_list())
         cats.update(self.db.get_debtors_list())
         cats.update(self.db.get_all_historical_liabilities())
 
         valid_cats = sorted([c for c in cats if c])
 
-        # --- BUDOWANIE ROZWIJANEGO MENU (Dynamiczne kolory) ---
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
@@ -2394,13 +2445,11 @@ class BudgetApp(QMainWindow):
             }
         """)
 
-        # 1. Opcja resetowania filtra
         action_clear = QAction("❌ Wyczyść filtr", self)
         action_clear.setData(None)
         menu.addAction(action_clear)
         menu.addSeparator()
 
-        # 2. Dodawanie kategorii
         for cat in valid_cats:
             display_text = f"✔ {cat}" if cat == self.active_filter_cat else cat
             action = QAction(display_text, self)
@@ -2413,18 +2462,15 @@ class BudgetApp(QMainWindow):
 
             menu.addAction(action)
 
-        # Wyświetlanie pod przyciskiem
         pos = self.btn_filter.mapToGlobal(QPoint(0, self.btn_filter.height()))
         selected_action = menu.exec(pos)
 
         if selected_action is not None:
             self.active_filter_cat = selected_action.data()
-            # --- AKTUALIZACJA NAZWY PRZYCISKU ---
             if self.active_filter_cat:
                 self.btn_filter.setText(f"🔍 {self.active_filter_cat}")
             else:
                 self.btn_filter.setText(_("🔍 Filtruj"))
-            # ------------------------------------
             self.load_transactions()
 
     def open_report_dialog(self):
@@ -2440,16 +2486,14 @@ class BudgetApp(QMainWindow):
             last_dir = self.settings.value("last_report_dir", os.path.expanduser("~"))
             fn = f"budzet_{d.selected_month_str.replace('-','_')}.pdf" if d.selected_type=="month" else f"bilans_{d.selected_year_str}.pdf"
 
-            # 1. Tworzymy dialog, ale wyłączamy w nim automatyczne pytanie o nadpisanie
             dialog = QFileDialog(self, _("Zapisz"), os.path.join(last_dir, fn), "PDF (*.pdf)")
             dialog.setAcceptMode(QFileDialog.AcceptSave)
-            dialog.setOption(QFileDialog.DontConfirmOverwrite, True) # TO WYŁĄCZA TO ZEPSUTE OKNO
+            dialog.setOption(QFileDialog.DontConfirmOverwrite, True)
 
             if dialog.exec() == QFileDialog.Accepted:
                 path = dialog.selectedFiles()[0]
 
                 if path:
-                    # 2. Teraz sami pytamy o nadpisanie naszym ładnym oknem
                     if os.path.exists(path):
                         msg = QMessageBox(self)
                         msg.setIcon(QMessageBox.Question)
@@ -2457,14 +2501,12 @@ class BudgetApp(QMainWindow):
                         msg.setText(_("Plik już istnieje. Czy chcesz go zastąpić?"))
                         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
 
-                        # Ręczne wymuszenie tekstu przycisków - to naprawia Twój znaczek
                         msg.button(QMessageBox.Yes).setText(_("Tak"))
                         msg.button(QMessageBox.No).setText(_("Nie"))
 
                         if msg.exec() == QMessageBox.No:
-                            return # Użytkownik się rozmyślił
+                            return
 
-                    # 3. Jeśli wszystko OK, generujemy raport
                     self.settings.setValue("last_report_dir", os.path.dirname(path))
                     self.gen_rep(path, d.selected_month_str if d.selected_type=="month" else d.selected_year_str, d.selected_month_name, d.selected_type=="year")
 
@@ -2482,45 +2524,44 @@ class BudgetApp(QMainWindow):
             first_day_of_year = f"{d_str}-01-01"
             prev_balance = self.db.get_net_balance_pln_before_date(first_day_of_year)
 
+        goal_variants = self.db.get_all_goal_subcategory_variants()
         exp, sav, lia, deb, inc = {}, 0, 0, 0, 0
         for r in tr:
             v = r[5]
-            ttype, tcat = r[2], r[3]
+            ttype, tcat, tsub = r[2], r[3], r[4]
             if ttype == 'income': inc += v
             elif ttype == 'expense': exp[tcat] = exp.get(tcat, 0) + v
-            elif ttype in ['savings', 'goal_deposit']: sav += v
+            elif ttype == 'goal_deposit':
+                if v >= 0:
+                    exp[_("Cele")] = exp.get(_("Cele"), 0) + v
+                else:
+                    inc += abs(v)
+            elif ttype == 'savings' and tsub not in goal_variants:
+                sav += v
             elif ttype == 'savings_migration':
-                if v > 0: sav += v # Sumujemy tylko wejście do oszczędności
+                if v > 0 and tsub not in goal_variants:
+                    sav += v
             elif ttype == 'liability_repayment': lia += v
             elif ttype == 'debtor_repayment': deb += v
 
-        # --- 5. OBLICZANIE STANU KONT (LUSTRO TWOJEGO DASHBOARDU) ---
         raw_accounts = self.db.get_accounts()
         acc_data = []
 
-        # Twoja logika z load_transactions używa m_str (np. 2026-04)
-        # do filtrowania transakcji "z poprzedniego miesiąca" i bieżących.
-        # Aby uzyskać stan "na teraz" zgodny z GUI:
 
         for acc_id, acc_name, initial_bal, unused_clr in raw_accounts:
-            # 1. Pobieramy wszystkie transakcje dla tego konta (bez limitu daty, jak w GUI)
             cursor = self.db.conn.execute(
                 "SELECT type, amount FROM transactions WHERE account_id=?", (acc_id,)
             )
             acc_history = cursor.fetchall()
 
-            # 2. Logika IDENTYCZNA z Twoim load_transactions:
-            # Dashboard sumuje TYLKO te typy:
             acc_inc = sum(r[1] for r in acc_history if r[0] in ['income', 'debtor_repayment'])
-            acc_exp = sum(r[1] for r in acc_history if r[0] in ['expense', 'liability_repayment', 'savings'])
+            acc_exp = sum(r[1] for r in acc_history if r[0] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
 
-            # Dashboard IGNORUJE savings_migration i goal_deposit w saldzie konta!
             acc_bal = initial_bal + acc_inc - acc_exp
 
             print(f"DEBUG SYNC: {acc_name} -> {acc_bal}")
             acc_data.append((acc_id, acc_name, acc_bal))
 
-        # 6. Generowanie raportu
         success = self.pdf_gen.generate(
             filename=path,
             title=t_txt,
@@ -2536,27 +2577,22 @@ class BudgetApp(QMainWindow):
     def update_goals_display(self):
         self._clear_layout_safely(self.goals_list_layout)
 
-        # 2. Pobieranie danych
         goals_data = self.db.get_goals_progress_simple()
 
-        # --- LOGIKA POKAZYWANIA/UKRYWANIA ---
         if not goals_data:
             self.goals_box.hide()
             return
         else:
             self.goals_box.show()
-        # ------------------------------------
 
         for g in goals_data:
             g_id, name, target, current = g['id'], g['name'], g['target'], g['collected']
 
-            # Główny kontener elementu (analogicznie do dłużników)
             w = QWidget()
             v = QVBoxLayout(w)
-            v.setContentsMargins(0, 0, 0, 8)
+            v.setContentsMargins(0, 0, 0, 6)
             v.setSpacing(2)
 
-            # Górny pasek: Nazwa celu + Przycisk X
             h_top = QHBoxLayout()
             lbl = QLabel(_("{}: {:.2f} / {:.0f} zł").format(name, current, target))
             lbl.setStyleSheet("font-size: 11px;")
@@ -2571,32 +2607,28 @@ class BudgetApp(QMainWindow):
             h_top.addStretch()
             h_top.addWidget(btn_del)
 
-            # Pasek postępu (wysokość 10px, ujednolicony styl)
             pbar = QProgressBar()
-            pbar.setFixedHeight(10)
+            pbar.setFixedHeight(5)
 
             if target > 0:
                 percent = int((current / target) * 100)
             else:
                 percent = 0
 
-            # Ograniczenie do 100% dla paska, ale zachowanie realnej wartości w tekście powyżej
             visual_percent = min(100, percent)
             pbar.setValue(visual_percent)
 
-            # Zielony jeśli osiągnięto cel, niebieski jeśli w trakcie
-            color = "#2ecc71" if percent >= 100 else "#3498db"
-            pbar.setStyleSheet(f"""
-                QProgressBar {{
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                    background-color: transparent;
-                }}
-                QProgressBar::chunk {{
-                    background-color: {color};
-                    border-radius: 3px;
-                }}
+            pbar.setStyleSheet("""
+                QProgressBar {
+                    border-radius: 2px;
+                }
+
+                QProgressBar::chunk {
+                    background-color: #3498db;
+                    border-radius: 2px;
+                }
             """)
+
             pbar.setTextVisible(False)
 
             v.addLayout(h_top)
@@ -2615,17 +2647,16 @@ class BudgetApp(QMainWindow):
 
         debts = self.db.get_liabilities_status()
 
-        # Licznik faktycznie aktywnych długów (kwota > 0)
         active_count = 0
         today = datetime.now().date()
 
         for d in debts:
             rem = d['total'] - d['paid']
-            if rem <= 0: continue  # Pomijamy spłacone
+            if rem <= 0: continue
 
-            active_count += 1 # Znaleźliśmy dług do spłacenia
+            active_count += 1
 
-            w = QWidget(); v = QVBoxLayout(w); v.setContentsMargins(0, 0, 0, 8); v.setSpacing(2)
+            w = QWidget(); v = QVBoxLayout(w); v.setContentsMargins(0, 6, 0, 6); v.setSpacing(2)
             try:
                 deadline_dt = datetime.strptime(d['deadline'], "%Y-%m-%d").date()
                 delta = (deadline_dt - today).days
@@ -2637,7 +2668,6 @@ class BudgetApp(QMainWindow):
             except: status_text = _("Błąd daty"); col = "gray"; is_overdue=False
 
             h_top = QHBoxLayout()
-            # ZMIANA: Używamy ClickableDebtLabel zamiast zwykłego QLabel
             info_lbl = ClickableDebtLabel(f"• {d['name']}: {rem:.2f} zł", d['id'], 'lia')
             info_lbl.clicked.connect(self.show_debt_details)
             info_lbl.setStyleSheet("font-size: 11px;")
@@ -2645,13 +2675,34 @@ class BudgetApp(QMainWindow):
             btn_del.clicked.connect(lambda ch, lid=d['id']: self.delete_liability(lid))
             h_top.addWidget(info_lbl); h_top.addStretch(); h_top.addWidget(btn_del)
 
-            pbar = QProgressBar(); pbar.setFixedHeight(10); percent = int((d['paid'] / d['total']) * 100) if d['total'] > 0 else 0; pbar.setValue(percent)
-            chunk_color = "#e57373" if is_overdue else "#3498db"
-            pbar.setStyleSheet(f"QProgressBar {{ border: 1px solid #ccc; border-radius: 4px; background-color: transparent; }} QProgressBar::chunk {{ background-color: {chunk_color}; border-radius: 3px; }}"); pbar.setTextVisible(False)
-            status_lbl = QLabel(status_text); status_lbl.setStyleSheet(f"font-size: 10px; color: {col}; font-style: italic;")
-            v.addLayout(h_top); v.addWidget(pbar); v.addWidget(status_lbl); self.liabilities_layout.addWidget(w)
+            pbar = QProgressBar()
+            pbar.setFixedHeight(5)
 
-        # KLUCZOWY MOMENT: Pokazujemy ramkę tylko, jeśli licznik > 0
+            percent = int((d['paid'] / d['total']) * 100) if d['total'] > 0 else 0
+            pbar.setValue(percent)
+
+            pbar.setStyleSheet("""
+                QProgressBar {
+                    border-radius: 2px;
+                }
+
+                QProgressBar::chunk {
+                    background-color: #3498db;
+                    border-radius: 2px;
+                }
+            """)
+
+            pbar.setTextVisible(False)
+
+            status_lbl = QLabel(status_text)
+            status_lbl.setStyleSheet(f"font-size: 10px; color: {col}; font-style: italic;")
+
+            v.addLayout(h_top)
+            v.addWidget(pbar)
+            v.addWidget(status_lbl)
+
+            self.liabilities_layout.addWidget(w)
+
         self.lia_box.setVisible(active_count > 0)
 
     def delete_liability(self, lid):
@@ -2672,15 +2723,12 @@ class BudgetApp(QMainWindow):
         import os
         import io
 
-        # --- KOMPLETNE IMPORTY DO ŁĄCZENIA PLIKÓW I OBRAZÓW ---
         try:
-            # Próba dla najnowszego pypdf (Arch Linux / Python 3.14)
             try:
                 from pypdf import PdfWriter as PdfMerger, PdfReader
             except ImportError:
                 from pypdf import PdfMerger, PdfReader
         except ImportError:
-            # Fallback dla starszych wersji PyPDF2
             try:
                 from PyPDF2 import PdfMerger, PdfReader
             except ImportError:
@@ -2692,7 +2740,6 @@ class BudgetApp(QMainWindow):
         except ImportError:
             QMessageBox.critical(self, _("Błąd"), _("Brak biblioteki Pillow. Zainstaluj ją: sudo pacman -S python-pillow"))
             return
-        # ----------------------------------------------------
 
         selected_indexes = self.table.selectionModel().selectedRows()
         if not selected_indexes:
@@ -2707,11 +2754,9 @@ class BudgetApp(QMainWindow):
         dialog.selectFile(os.path.basename(default_pdf_path))
         dialog.setNameFilters(["PDF Files (*.pdf)"])
         dialog.setFileMode(QFileDialog.AnyFile)
-        dialog.setAcceptMode(QFileDialog.AcceptSave) # Tryb zapisu pliku
+        dialog.setAcceptMode(QFileDialog.AcceptSave)
 
-        # Wymuszamy natywne okno systemowe
         dialog.setOption(QFileDialog.DontUseNativeDialog, False)
-        # Przenosimy opcję braku systemowego potwierdzenia nadpisania (bo masz poniżej własny ładny dialog)
         dialog.setOption(QFileDialog.DontConfirmOverwrite, True)
 
         path = ""
@@ -2723,7 +2768,6 @@ class BudgetApp(QMainWindow):
         if not path:
             return
 
-        # --- OSTATECZNY FIX: Własne okno zamiast QMessageBox ---
         if os.path.exists(path):
             from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
@@ -2737,7 +2781,6 @@ class BudgetApp(QMainWindow):
             btn_yes = QPushButton(_("Tak"))
             btn_no = QPushButton(_("Nie"))
 
-            # Stylizujemy przyciski, żeby wyglądały jak standardowe
             btn_yes.setFixedWidth(80)
             btn_no.setFixedWidth(80)
 
@@ -2746,15 +2789,13 @@ class BudgetApp(QMainWindow):
             btn_layout.addWidget(btn_no)
             diag_layout.addLayout(btn_layout)
 
-            # Logika przycisków
             btn_yes.clicked.connect(diag.accept)
             btn_no.clicked.connect(diag.reject)
 
             if diag.exec() == QDialog.Rejected:
-                return # Użytkownik kliknął Nie lub zamknął okno
+                return
 
         try:
-            # --- REJESTRACJA CZCIONEK ---
             font_name = 'Helvetica'
             bold_font_name = 'Helvetica-Bold'
             paths = ["/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf", "DejaVuSans.ttf"]
@@ -2773,8 +2814,6 @@ class BudgetApp(QMainWindow):
                 else:
                     bold_font_name = font_name
 
-            # --- NOWA LOGIKA: Bufor zamiast pliku ---
-            # doc = SimpleDocTemplate(path, pagesize=A4) # ZAKOMENTOWANE
             main_pdf_buffer = io.BytesIO()
             doc = SimpleDocTemplate(main_pdf_buffer, pagesize=A4)
 
@@ -2785,7 +2824,6 @@ class BudgetApp(QMainWindow):
             elements.append(Paragraph(_("Zestawienie wybranych transakcji"), title_style))
             elements.append(Spacer(1, 20))
 
-            # --- NAGŁÓWEK TABELI (Dodajemy kolumnę Nr) ---
             data = [[_("Nr"), _("Data"), _("Typ"), _("Kategoria / Cel"), _("Szczegóły"), _("Kwota")]]
 
             total_inc = 0.0
@@ -2793,7 +2831,6 @@ class BudgetApp(QMainWindow):
 
             selected_rows = sorted([idx.row() for idx in selected_indexes])
 
-            # Lista do przechowywania ID transakcji z plikami do doklejenia
             files_to_attach = []
 
             for row in selected_rows:
@@ -2802,7 +2839,6 @@ class BudgetApp(QMainWindow):
                 t_display_type = self.table.item(row, 2).text()
                 cat = self.table.item(row, 3).text()
 
-                # --- NOWA LOGIKA: OBLICZANIE NUMERU W MIESIĄCU DLA TABELI ---
                 rok_miesiac = date[:7]
                 all_rows_in_month = []
                 for r in range(self.table.rowCount()):
@@ -2810,31 +2846,26 @@ class BudgetApp(QMainWindow):
                     if row_date.startswith(rok_miesiac):
                         all_rows_in_month.append(int(self.table.item(r, 0).text()))
 
-                all_rows_in_month.reverse() # Ta sama logika co w załącznikach
+                all_rows_in_month.reverse()
                 try:
                     num_in_month = all_rows_in_month.index(tid) + 1
                 except ValueError:
                     num_in_month = "???"
-                # ----------------------------------------------------------
 
                 details_item = self.table.item(row, 5)
                 details_text = details_item.text().replace("📎", "").strip() if details_item else ""
 
-                # Sprawdzamy czy jest spinacz (załącznik) w opisie
                 if details_item and "📎" in details_item.text():
                     files_to_attach.append({'id': tid, 'date': date, 'cat': cat})
 
                 amt_item = self.table.item(row, 4)
                 if not amt_item: continue
-
-                # Pobieramy czystą liczbę
                 amt_str = amt_item.text().replace(" zł", "").replace(" ", "").replace(",", ".")
                 try:
                     val = abs(float(amt_str))
                 except:
                     val = 0.0
 
-                # --- KLUCZOWA POPRAWKA: Rozpoznawanie po kolorze lub nazwie ---
                 is_income = False
                 cell_color = amt_item.foreground().color()
 
@@ -2842,7 +2873,6 @@ class BudgetApp(QMainWindow):
                     is_income = True
                 elif any(x in t_display_type.lower() for x in ["wpływ", "przychód", "zwrot", "repayment", "income"]):
                     is_income = True
-
                 if is_income:
                     total_inc += val
                     display_val = f"{val:.2f}"
@@ -2850,23 +2880,18 @@ class BudgetApp(QMainWindow):
                     total_exp += val
                     display_val = f"-{val:.2f}"
 
-                # Dodajemy num_in_month na początek wiersza
                 data.append([str(num_in_month), date, t_display_type, cat, Paragraph(details_text, polish_style), display_val])
 
-            # Pusty wiersz separatora
             data.append(["", "", "", "", ""])
 
-            # Podsumowanie
             if total_inc > 0:
                 data.append(["", "", "", _("SUMA WPŁYWÓW:"), f"{total_inc:.2f} zł"])
             if total_exp > 0:
                 data.append(["", "", "", _("SUMA WYDATKÓW:"), f"-{total_exp:.2f} zł"])
-
             if total_inc > 0 and total_exp > 0:
                 balance = total_inc - total_exp
                 data.append(["", "", "", _("BILANS:"), f"{balance:.2f} zł"])
 
-            # --- STYLIZACJA ---
             t = Table(data, colWidths=[30, 65, 75, 90, 180, 80])
 
             footer_rows = 0
@@ -2880,18 +2905,12 @@ class BudgetApp(QMainWindow):
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, -1), font_name),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
-                # GRID rysuje siatkę od początku do wiersza przed podsumowaniem
                 ('GRID', (0, 0), (-1, -(footer_rows + 1)), 0.5, colors.grey),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-
-                # POPRAWIONE INDEKSY:
-                # Kolumna 4 (wcześniej 3) to "Szczegóły" -> do lewej
                 ('ALIGN', (4, 1), (4, -1), 'LEFT'),
-                # Kolumna 5 (wcześniej 4) to "Kwota" -> do prawej
                 ('ALIGN', (5, 1), (5, -1), 'RIGHT'),
             ])
 
-            # Pogrubienie wierszy podsumowania dla kolumn od "Szczegóły" do końca
             if footer_rows > 0:
                 ts.add('FONTNAME', (4, -footer_rows), (-1, -1), bold_font_name)
 
@@ -2899,25 +2918,21 @@ class BudgetApp(QMainWindow):
             elements.append(t)
             doc.build(elements)
 
-            # --- NOWE: ŁĄCZENIE Z ZAŁĄCZNIKAMI ---
             merger = PdfMerger()
             main_pdf_buffer.seek(0)
             merger.append(main_pdf_buffer)
 
-            # --- SŁOWNIK MIESIĘCY ---
             miesiace = {
                 '01': 'stycznia', '02': 'lutego', '03': 'marca', '04': 'kwietnia',
                 '05': 'maja', '06': 'czerwca', '07': 'lipca', '08': 'sierpnia',
                 '09': 'września', '10': 'października', '11': 'listopada', '12': 'grudnia'
             }
 
-            # --- PĘTLA DLA ZAŁĄCZNIKÓW ---
             for f_info in files_to_attach:
                 raw_bytes = self.db.get_attachment(f_info['id'])
                 if not raw_bytes: continue
 
                 try:
-                    # 1. Obliczamy numer transakcji w miesiącu
                     rok_miesiac = f_info['date'][:7]
                     all_rows_in_month = []
                     for r in range(self.table.rowCount()):
@@ -2931,14 +2946,12 @@ class BudgetApp(QMainWindow):
                     except ValueError:
                         num = "???"
 
-                    # 2. Formatowanie daty
                     d = f_info['date'][8:10].lstrip('0')
                     m_idx = f_info['date'][5:7]
                     y = f_info['date'][:4]
                     data_str = f"{d} {miesiace.get(m_idx, '')} {y}"
                     tekst_naglowka = f"ZAŁĄCZNIK DO TRANSAKCJI nr {num} | z dnia {data_str}"
 
-                    # 3. Wczytujemy stronę
                     if raw_bytes.startswith(b"%PDF"):
                         input_pdf = PdfReader(io.BytesIO(raw_bytes))
                         page = input_pdf.pages[0]
@@ -2951,50 +2964,36 @@ class BudgetApp(QMainWindow):
                         img_reader = PdfReader(img_pdf_buf)
                         page = img_reader.pages[0]
 
-                    # --- KLUCZOWA POPRAWKA: DYNAMICZNE SKALOWANIE ---
-                    # Pobieramy fizyczne wymiary strony (w punktach lub pikselach)
                     p_width = float(page.mediabox.width)
                     p_height = float(page.mediabox.height)
 
-                    # Ustawiamy rozmiar czcionki na 1.8% szerokości strony
-                    # Dzięki temu na dużym zdjęciu napis będzie odpowiednio wielki
                     dynamic_font_size = p_width * 0.018
 
-                    # Marginesy (3% szerokości i wysokości)
                     margin_x = p_width * 0.03
                     margin_y = p_height * 0.03
 
                     overlay_buffer = io.BytesIO()
-                    # Tworzymy canvas o wymiarach DOKŁADNIE takich jak strona załącznika
                     c = canvas.Canvas(overlay_buffer, pagesize=(p_width, p_height))
 
-                    # Ustawiamy czcionkę (używamy zarejestrowanej DejaVuSans-Bold)
                     c.setFont(bold_font_name, dynamic_font_size)
-                    c.setFillColorRGB(0.3, 0.3, 0.3) # Ciemnoszary, profesjonalny
+                    c.setFillColorRGB(0.3, 0.3, 0.3)
 
-                    # Rysujemy napis.
-                    # X: Szerokość strony minus margines (wyrównanie do prawej)
-                    # Y: Wysokość strony minus margines minus rozmiar czcionki
                     c.drawRightString(p_width - margin_x, p_height - (margin_y + dynamic_font_size), tekst_naglowka)
                     c.save()
 
                     overlay_buffer.seek(0)
                     overlay_reader = PdfReader(overlay_buffer)
 
-                    # Nakładamy przezroczystą warstwę z napisem na stronę załącznika
                     page.merge_page(overlay_reader.pages[0])
 
-                    # Dodajemy gotową stronę do dokumentu finalnego
                     merger.add_page(page)
 
                 except Exception as e:
                     print(f"Błąd stemplowania ID {f_info['id']}: {e}")
 
-            # Zapis końcowy na dysk
             with open(path, "wb") as f_final:
                 merger.write(f_final)
             merger.close()
-            # --------------------------------------
 
             QMessageBox.information(self, _("Sukces"), _("PDF został wygenerowany pomyślnie (wraz z załącznikami)."))
 
@@ -3005,7 +3004,7 @@ class BudgetApp(QMainWindow):
     def closeEvent(self, e):
         import time
         from dialogs import ProcessingDialog
-        from config import save_table_widths  # Import tutaj lub na górze pliku
+        from config import save_table_widths
 
         if self.guide:
             self.guide.stop_guide()
@@ -3019,7 +3018,6 @@ class BudgetApp(QMainWindow):
         if hasattr(self, "search_timer"):
             self.search_timer.stop()
 
-        # 1. ZAPIS SZEROKOŚCI KOLUMN (Indeksy 1-4, bo 5 jest Stretch, a 0 ukryte)
         try:
             widths = {
                 1: self.table.columnWidth(1),
@@ -3031,13 +3029,11 @@ class BudgetApp(QMainWindow):
         except Exception as err:
             print(f"Problem przy pobieraniu szerokości kolumn: {err}")
 
-        # 2. ZAPIS USTAWIEŃ OKNA I DATY
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
         self.settings.setValue("last_year", self.current_year)
         self.settings.setValue("last_month", self.current_month)
 
-        # 3. AUTOMATYCZNY BACKUP
         cfg = self.db.get_config("backup_config")
         if cfg and cfg.get("auto_backup"):
             pd = ProcessingDialog(self, _("Zamykanie"), _("Backup..."))

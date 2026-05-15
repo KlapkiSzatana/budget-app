@@ -136,5 +136,17 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Poprawa wyświetlania skrótów kalwiaturowych w menu
-            - Windows i MacOS poprawa problemów z pdf (zapisz, otwórz)
+            - Dodanie modułu prognoz finansowych
+            - Dodanie możliwości zgłaszania błędów bezpośrednio przez GitHub
+            - Poprawa obliczeń w systemie celów finansowych
+            - Poprawki działania mechanizmów odpowiedzialnych za cele finansowe
+            - Ulepszenie wyświetlania danych w sekcji oszczędności („Ten miesiąc”)
+            ---
+            ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
+
+            Aplikacja jest darmowym projektem o otwartym kodzie źródłowym i **nie posiada płatnego podpisu cyfrowego**.
+            Z tego powodu Twój system operacyjny może wyświetlić ostrzeżenie podczas pierwszego uruchomienia:
+
+            * **Windows (SmartScreen):** Kliknij `Więcej informacji` -> `Uruchom mimo to`.
+            * **macOS:** Kliknij prawym przyciskiem myszy na aplikację i wybierz `Otwórz`, a następnie zatwierdź uruchomienie w Ustawieniach systemowych (Bezpieczeństwo).
+            * **Kod źródłowy:** Cały kod jest w pełni jawny i dostępny do wglądu w tym repozytorium – aplikacja jest w 100% bezpieczna.

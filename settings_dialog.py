@@ -10,10 +10,10 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.setWindowTitle(_("Ustawienia i Konta"))
-        self.resize(550, 600)
+        self.resize(550, 650)
         layout = QVBoxLayout(self)
 
-        # --- DEFINICJA STYLI ---
+
         base_style = """
             QPushButton {
                 font-size: 12px; font-weight: bold; padding: 5px 10px;
@@ -29,28 +29,36 @@ class SettingsDialog(QDialog):
             QPushButton:hover { background-color: #c0392b; color: #ffffff; }
         """
 
-        # --- SEKCJA MODUŁÓW ---
+
         modules_group = QGroupBox(_("Widoczne moduły i systemy"))
         mod_lay = QVBoxLayout(modules_group)
 
         self.cb_liabilities = QCheckBox(_("System Długów (Zobowiązania)"))
         self.cb_liabilities.setChecked(self.db.get_config_bool("show_liabilities", True))
+
         self.cb_debtors = QCheckBox(_("System Dłużników (Należności)"))
         self.cb_debtors.setChecked(self.db.get_config_bool("show_debtors", True))
+
         self.cb_shopping = QCheckBox(_("Moduł: Lista Zakupów"))
         self.cb_shopping.setChecked(self.db.get_config_bool("show_shopping", True))
+
         self.cb_weekly = QCheckBox(_("System: Limit Tygodniowy"))
         self.cb_weekly.setChecked(self.db.get_config_bool("show_weekly", True))
 
-        for cb in [self.cb_liabilities, self.cb_debtors, self.cb_shopping, self.cb_weekly]:
+
+        self.cb_forecast = QCheckBox(_("Moduł: Prognozy i Analiza AI"))
+        self.cb_forecast.setChecked(self.db.get_config_bool("show_forecast", True))
+
+
+        for cb in [self.cb_liabilities, self.cb_debtors, self.cb_shopping, self.cb_weekly, self.cb_forecast]:
             mod_lay.addWidget(cb)
         layout.addWidget(modules_group)
 
-        # --- SEKCJA KONT BANKOWYCH ---
+
         acc_group = QGroupBox(_("Zarządzanie kontami"))
         acc_lay = QVBoxLayout(acc_group)
 
-        # Zmieniamy na 3 kolumny: Nazwa, Saldo, Akcja
+
         self.acc_table = QTableWidget(0, 3)
         self.acc_table.setHorizontalHeaderLabels([_("Nazwa konta"), _("Saldo pocz."), _("Kolor")])
         self.acc_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
@@ -62,10 +70,14 @@ class SettingsDialog(QDialog):
         self.acc_table.setStyleSheet("QTableWidget { font-size: 12px; }")
         acc_lay.addWidget(self.acc_table)
 
-        # Formularz dodawania konta
+
         add_acc_lay = QHBoxLayout()
-        self.new_acc_name = QLineEdit(); self.new_acc_name.setPlaceholderText(_("Nazwa konta"))
-        self.new_acc_bal = QLineEdit(); self.new_acc_bal.setPlaceholderText(_("Saldo startowe"))
+        self.new_acc_name = QLineEdit()
+        self.new_acc_name.setPlaceholderText(_("Nazwa konta"))
+        self.new_acc_name.setMaxLength(30)
+
+        self.new_acc_bal = QLineEdit()
+        self.new_acc_bal.setPlaceholderText(_("Saldo startowe"))
 
         btn_add_acc = QPushButton(_("Dodaj konto"))
         btn_add_acc.setStyleSheet(inc_style)
@@ -78,10 +90,10 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(acc_group)
 
-        # Wywołujemy odświeżanie
+
         self.refresh_accounts()
 
-        # --- PRZYCISKI ZAPISU I ANULOWANIA ---
+
         self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         self.buttons.accepted.connect(self.save_and_close)
         self.buttons.rejected.connect(self.reject)
@@ -106,19 +118,18 @@ class SettingsDialog(QDialog):
             row = self.acc_table.rowCount()
             self.acc_table.insertRow(row)
 
-            # 1. Nazwa konta
+
             name_item = QTableWidgetItem(name)
             name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.acc_table.setItem(row, 0, name_item)
 
-            # 2. Saldo początkowe
+
             bal_item = QTableWidgetItem(f"{bal:.2f} zł")
             bal_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.acc_table.setItem(row, 1, bal_item)
 
-            # 3. Widget koloru (Podgląd + Przycisk)
+
             color_widget = QPushButton(_("Zmień"))
-            # Mały trik stylistyczny: kolorowy pasek na przycisku
             color_widget.setStyleSheet(f"""
                 QPushButton {{
                     border-left: 10px solid {color};
@@ -135,7 +146,7 @@ class SettingsDialog(QDialog):
             new_hex = color.name()
             if self.db.update_account_color(acc_id, new_hex):
                 self.refresh_accounts()
-                # Powiadomienie Dashboardu o zmianie kolorów
+
                 if hasattr(self.parent(), 'load_transactions'):
                     self.parent().load_transactions()
 
@@ -158,7 +169,7 @@ class SettingsDialog(QDialog):
             self.new_acc_name.clear()
             self.new_acc_bal.clear()
             self.refresh_accounts()
-            # Odświeżenie Dashboardu
+
             if hasattr(self.parent(), 'load_transactions'):
                 self.parent().load_transactions()
             QMessageBox.information(self, _("Sukces"), _("Konto '{}' zostało dodane.").format(name))
@@ -170,4 +181,6 @@ class SettingsDialog(QDialog):
         self.db.set_config("show_debtors", self.cb_debtors.isChecked())
         self.db.set_config("show_shopping", self.cb_shopping.isChecked())
         self.db.set_config("show_weekly", self.cb_weekly.isChecked())
+
+        self.db.set_config("show_forecast", self.cb_forecast.isChecked())
         self.accept()

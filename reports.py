@@ -10,11 +10,11 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from config import _, APPNAME, WERSJA, PRODUCENT
 
-# --- MECHANIZM SPRZĄTANIA PLIKÓW TYMCZASOWYCH ---
+
 PDF_FILES_TO_CLEAN = []
 
 def cleanup_generated_files():
-    """Usuwa tymczasowe pliki PDF wygenerowane podczas sesji."""
+
     for file_path in PDF_FILES_TO_CLEAN:
         try:
             if os.path.exists(file_path):
@@ -66,19 +66,19 @@ class PDFReportGenerator:
 
         elements = []
 
-        # Style
+
         title_style = ParagraphStyle('TitleStyle', fontName=self.font_name, fontSize=20, textColor=colors.HexColor("#2c3e50"), spaceAfter=10)
         normal_style = ParagraphStyle('NormalStyle', fontName=self.font_name, fontSize=10, spaceAfter=5)
         desc_style = ParagraphStyle('DescStyle', fontName=self.font_name, fontSize=8, leading=10)
         header_table_style = ParagraphStyle('HTStyle', fontName=self.font_name, fontSize=11, spaceBefore=10, spaceAfter=8, fontWeight='BOLD')
         sub_desc_style = ParagraphStyle('SubDescStyle', fontName=self.font_name, fontSize=7, textColor=colors.grey, leading=8)
 
-        # --- 1. NAGŁÓWEK ---
+
         elements.append(Paragraph(title.upper(), title_style))
         elements.append(Paragraph(f"{_('Data wygenerowania')}: {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
         elements.append(Spacer(1, 0.25*cm))
 
-        # --- 2. OBLICZENIA I AGREGACJA STATYSTYK ---
+
         incomes, expenses = {}, {}
         acc_names_map = {acc[0]: acc[1] for acc in accounts_data}
 
@@ -86,15 +86,18 @@ class PDFReportGenerator:
         total_exp = 0.0
         debt_repayments_sum = 0.0
         total_lia_repayments = 0.0
-        savings_sum = 0.0
+        savings_deposits_sum = 0.0
+        savings_withdrawals_sum = 0.0
+        goal_deposits_sum = 0.0
+        goal_withdrawals_sum = 0.0
 
         transactions.sort(key=lambda x: x[1])
 
         for row in transactions:
             t_type, t_cat, t_amt = row[2], row[3], row[5]
 
-            # LICZYMY TYLKO STATYSTYKI MIESIĘCZNE.
-            # NIE dotykamy sald kont (accounts_data), bo one są już gotowe i poprawne!
+
+
             if t_type == "income":
                 incomes[t_cat] = incomes.get(t_cat, 0.0) + t_amt
                 total_inc += t_amt
@@ -104,28 +107,31 @@ class PDFReportGenerator:
             elif t_type == "expense":
                 expenses[t_cat] = expenses.get(t_cat, 0.0) + t_amt
                 total_exp += t_amt
-            elif t_type in ["savings", "goal_deposit"]:
-                savings_sum += t_amt
+            elif t_type == "savings":
+                if t_amt >= 0:
+                    savings_deposits_sum += t_amt
+                else:
+                    savings_withdrawals_sum += abs(t_amt)
                 total_exp += t_amt
+            elif t_type == "goal_deposit":
+                if t_amt >= 0:
+                    goal_deposits_sum += t_amt
+                else:
+                    goal_withdrawals_sum += abs(t_amt)
             elif t_type == "liability_repayment":
                 total_lia_repayments += t_amt
                 total_exp += t_amt
-            elif t_type == "savings_migration":
-                # Migracja to transfer. Do statystyki oszczędności dodajemy tylko gdy > 0 (wpływ na cel),
-                # ale NIE doliczamy do total_exp, żeby nie psuć bilansu portfela.
-                if t_amt > 0:
-                    savings_sum += t_amt
 
-        # Zmienne dla podsumowania (Naprawa NameError)
+
         final_inc_sum = total_inc + prev_balance
         net_balance = final_inc_sum - total_exp
 
-        # --- STRONA 1: STAN POSZCZEGÓLNYCH KONT ---
+
         elements.append(Paragraph(_("STAN POSZCZEGÓLNYCH KONT (NA KONIEC OKRESU)"), header_table_style))
         data_acc = [[_("Konto / Portfel"), _("Saldo")]]
 
-        # WYŚWIETLAMY DOKŁADNIE TO, CO WYLICZYŁO BUDGET-APP.PY
-        # Żadnej dodatkowej matematyki tutaj!
+
+
         for acc in accounts_data:
             data_acc.append([str(acc[1]), f"{acc[2]:.2f} zł"])
 
@@ -134,7 +140,7 @@ class PDFReportGenerator:
         elements.append(t_acc)
         elements.append(Spacer(1, 0.25*cm))
 
-        # --- PODSUMOWANIE PRZYCHODÓW ---
+
         elements.append(Paragraph(_("PODSUMOWANIE PRZYCHODÓW / WPŁYWÓW"), header_table_style))
         data_inc = [[_("Źródło"), _("Kwota")]]
         data_inc.append([_("Z poprzedniego miesiąca"), f"{prev_balance:.2f} zł"])
@@ -142,6 +148,10 @@ class PDFReportGenerator:
             data_inc.append([cat, f"{val:.2f} zł"])
         if debt_repayments_sum > 0:
             data_inc.append([_("Zwroty od dłużników"), f"{debt_repayments_sum:.2f} zł"])
+        if savings_withdrawals_sum > 0:
+            data_inc.append([_("Wypłaty z oszczędności"), f"{savings_withdrawals_sum:.2f} zł"])
+        if goal_withdrawals_sum > 0:
+            data_inc.append([_("Wypłaty z celów"), f"{goal_withdrawals_sum:.2f} zł"])
 
         data_inc.append([_("ŁĄCZNA DOSTĘPNA KWOTA"), f"{final_inc_sum:.2f} zł"])
 
@@ -150,14 +160,14 @@ class PDFReportGenerator:
         elements.append(t_inc)
         elements.append(Spacer(1, 0.5*cm))
 
-        # BILANS KOŃCOWY
+
         bilans_text = f"<b>{_('SALDO KOŃCOWE')}: {net_balance:.2f} PLN</b>"
         bilans_color = colors.darkgreen if net_balance >= 0 else colors.red
         elements.append(Paragraph(bilans_text, ParagraphStyle('Bilans', fontName=self.font_name, fontSize=14, alignment=1, textColor=bilans_color)))
 
         elements.append(PageBreak())
 
-        # --- STRONA 2: WYDATKI ---
+
         elements.append(Paragraph(title.upper() + " - " + _("WYDATKI"), title_style))
         elements.append(Spacer(1, 0.25*cm))
 
@@ -165,8 +175,10 @@ class PDFReportGenerator:
         data_exp = [[_("Kategoria"), _("Kwota")]]
         for cat, val in expenses.items():
             data_exp.append([cat, f"{val:.2f} zł"])
-        if savings_sum > 0:
-            data_exp.append([_("Przekazano na oszczędności"), f"{savings_sum:.2f} zł"])
+        if savings_deposits_sum > 0:
+            data_exp.append([_("Przekazano na oszczędności"), f"{savings_deposits_sum:.2f} zł"])
+        if goal_deposits_sum > 0:
+            data_exp.append([_("Wpłaty na cele"), f"{goal_deposits_sum:.2f} zł"])
         if total_lia_repayments > 0:
             data_exp.append([_("Spłata zobowiązań"), f"{total_lia_repayments:.2f} zł"])
         data_exp.append([_("SUMA ROZCHODÓW"), f"{total_exp:.2f} zł"])
@@ -175,14 +187,14 @@ class PDFReportGenerator:
         t_exp.setStyle(self._get_table_style(colors.HexColor("#c0392b")))
         elements.append(t_exp)
 
-        # Powtórzenie bilansu dla czytelności
+
         elements.append(Spacer(1, 0.8*cm))
         bilans_op_text = f"<b>{_('BILANS MIESIĘCZNY (Suma środków - Wydatki)')}: {net_balance:.2f} PLN</b>"
         elements.append(Paragraph(bilans_op_text, ParagraphStyle('BilansOp', fontName=self.font_name, fontSize=14, alignment=1, textColor=bilans_color)))
 
         elements.append(PageBreak())
 
-        # --- STRONA 3: REJESTR (IDENTYCZNA KOLEJNOŚĆ 1:1 Z BAZĄ/DASHBOARDEM) ---
+
         elements.append(Paragraph(_("PEŁNY REJESTR TRANSAKCJI"), title_style))
 
         headers = [_("ID"), _("Data"), _("Typ / Konto"), _("Kategoria"), _("Opis"), _("Kwota")]
@@ -190,30 +202,30 @@ class PDFReportGenerator:
 
         type_m = {
             'income': _('Wpływ'), 'expense': _('Wydatek'), 'savings': _('Oszcz.'),
-            'savings_migration': _('Transfer'), 'goal_deposit': _('Na Cel'),
+            'savings_migration': _('Transfer'), 'goal_deposit': _('Cel'),
             'liability_repayment': _('Spłata'), 'debtor_repayment': _('Zwrot długu')
         }
 
-        # 1. FILTROWANIE: Wyrzucamy zera
+
         #valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01]
         valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01 and t[2] != 'savings_migration']
 
-        # 2. SORTOWANIE: Od najstarszej (data) i według kolejności dodania (id)
-        # To gwarantuje, że 5 transakcji z tego samego dnia będzie w tej samej kolejności co w tabeli
+
+
         valid_transactions.sort(key=lambda x: (x[1], x[0]))
 
-        # 3. PĘTLA GENERUJĄCA WIERSZE
+
         for i, row in enumerate(valid_transactions):
             main_type = type_m.get(row[2], row[2])
             acc_name = acc_names_map.get(row[8], "-") if len(row) > 8 else "-"
 
-            # Komórka Typ / Konto
+
             type_cell = [
                 Paragraph(main_type, desc_style),
                 Paragraph(f"<font color='grey'>{acc_name}</font>", sub_desc_style)
             ]
 
-            # Opis (row[4]) + Szczegóły (row[6])
+
             main_desc = row[4] if row[4] else "-"
             sub_details = str(row[6]).replace('\n', ', ').strip(', ') if len(row) > 6 and row[6] else ""
 
@@ -221,19 +233,19 @@ class PDFReportGenerator:
             if sub_details:
                 desc_cell.append(Paragraph(f"<i>{sub_details}</i>", sub_desc_style))
 
-            # NUMERACJA: Idzie od 1 do X (zgodnie z kolejnością na liście)
+
             display_id = str(i + 1)
 
             data_all.append([
-                display_id,         # Nr porządkowy w raporcie
-                row[1],             # Data
-                type_cell,          # Typ / Konto
-                row[3],             # Kategoria
-                desc_cell,          # Opis + Szczegóły
-                f"{row[5]:.2f}"     # Kwota
+                display_id,
+                row[1],
+                type_cell,
+                row[3],
+                desc_cell,
+                f"{row[5]:.2f}"
             ])
 
-        # colWidths i TableStyle pozostają bez zmian dla zachowania czytelności
+
         t_details = Table(data_all, colWidths=[1.0*cm, 2.2*cm, 2.5*cm, 3.2*cm, 6.6*cm, 2.5*cm], repeatRows=1)
         t_details.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), self.font_name),

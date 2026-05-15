@@ -3,7 +3,7 @@ import os
 import json
 import uuid
 from datetime import datetime, timedelta
-from config import APP_DIR
+from config import APP_DIR, _
 
 class DatabaseManager:
     def __init__(self, db_name="budzet.db"):
@@ -576,11 +576,81 @@ class DatabaseManager:
     def get_goals(self):
         return [r[0] for r in self.conn.execute("SELECT name FROM goals ORDER BY name").fetchall()]
 
+    def get_goals_with_details(self):
+        return self.conn.execute(
+            "SELECT id, name, target_amount, default_account_id FROM goals ORDER BY name"
+        ).fetchall()
+
+    def _get_goal_subcategory_variants(self, goal_name):
+        if not goal_name:
+            return tuple()
+
+        variants = {goal_name}
+        for template in (
+            _("Wpłata: {}"),
+            _("Wypłata: {}"),
+            "Wpłata: {}",
+            "Wypłata: {}",
+        ):
+            variants.add(template.format(goal_name))
+        return tuple(variants)
+
+    def get_all_goal_subcategory_variants(self):
+        variants = set()
+        for _goal_id, goal_name, _target, _default_account_id in self.get_goals_with_details():
+            variants.update(self._get_goal_subcategory_variants(goal_name))
+        return variants
+
+    def get_goal_total(self, goal_name, goal_id=None, account_id=None):
+        variants = self._get_goal_subcategory_variants(goal_name)
+        if not goal_name:
+            return 0.0
+
+        goal_total = 0.0
+
+        query = """
+            SELECT SUM(amount)
+            FROM transactions
+            WHERE type = 'goal_deposit'
+              AND (
+                    ref_id = ?
+                    OR (ref_id IS NULL AND subcategory = ?)
+                  )
+        """
+        params = [goal_id if goal_id is not None else -1, goal_name]
+
+        if account_id is not None:
+            query += " AND account_id = ?"
+            params.append(account_id)
+
+        res = self.conn.execute(query, params).fetchone()[0]
+        if res is not None:
+            goal_total += res
+
+        if variants:
+            placeholders = ",".join("?" for _unused in variants)
+            legacy_query = f"""
+                SELECT SUM(amount)
+                FROM transactions
+                WHERE type IN ('savings', 'savings_migration')
+                  AND subcategory IN ({placeholders})
+            """
+            legacy_params = list(variants)
+
+            if account_id is not None:
+                legacy_query += " AND account_id = ?"
+                legacy_params.append(account_id)
+
+            legacy_res = self.conn.execute(legacy_query, legacy_params).fetchone()[0]
+            if legacy_res is not None:
+                goal_total += legacy_res
+
+        return goal_total
+
     def get_goals_progress_simple(self):
         goals_data = []
-        for g_id, g_name, g_target in self.conn.execute("SELECT id, name, target_amount FROM goals").fetchall():
-            res = self.conn.execute("SELECT SUM(amount) FROM transactions WHERE type='savings' AND subcategory=?", (g_name,)).fetchone()[0]
-            current_sum = res if res else 0.0
+        for g_id, g_name, g_target, _default_account_id in self.get_goals_with_details():
+            current_sum = self.get_goal_total(g_name, goal_id=g_id)
             goals_data.append({'id': g_id, 'name': g_name, 'target': g_target, 'collected': current_sum})
         return goals_data
 
@@ -710,21 +780,28 @@ class DatabaseManager:
         self.conn.execute("DELETE FROM month_locks WHERE month_str=?", (month_str,))
         self.conn.commit()
 
-    def get_total_savings_cash_pln(self):
+    def get_total_savings_cash_pln(self, account_id=None):
         """
         Pobiera sumę wszystkich oszczędności z całej historii bazy.
-        Uwzględnia standardowe oszczędności, migracje oraz WPŁATY NA CELE.
+        Cele są liczone osobno i nie wchodzą do tego zestawienia.
         """
-        # Używamy IN, aby złapać 'savings' oraz 'goal_deposit'
+        goal_variants = self.get_all_goal_subcategory_variants()
         query = """
-            SELECT SUM(amount)
+            SELECT amount, subcategory
             FROM transactions
-            WHERE type IN ('savings', 'savings_migration', 'goal_deposit')
+            WHERE type IN ('savings', 'savings_migration')
         """
+        params = []
+        if account_id is not None:
+            query += " AND account_id = ?"
+            params.append(account_id)
         try:
-            cursor = self.conn.execute(query)
-            res = cursor.fetchone()[0]
-            return res if res is not None else 0.0
+            total = 0.0
+            for amount, subcategory in self.conn.execute(query, params).fetchall():
+                if subcategory in goal_variants:
+                    continue
+                total += amount
+            return total
         except Exception as e:
             print(f"Błąd bazy przy sumowaniu oszczędności: {e}")
             return 0.0
@@ -733,7 +810,7 @@ class DatabaseManager:
         balance = 0.0
         for t_type, amt in self.conn.execute("SELECT type, amount FROM transactions WHERE date < ?", (date_limit_str,)).fetchall():
             if t_type == 'income': balance += amt
-            elif t_type in ['expense', 'savings', 'liability_repayment']: balance -= amt
+            elif t_type in ['expense', 'savings', 'liability_repayment', 'goal_deposit']: balance -= amt
             elif t_type == 'debtor_repayment': balance += amt # Zwrot od dłużnika to plus
         return balance
 
@@ -855,13 +932,19 @@ class DatabaseManager:
         res = self.conn.execute("SELECT DISTINCT strftime('%Y', date) as y FROM transactions ORDER BY y DESC").fetchall()
         return [int(r[0]) for r in res if r[0]]
 
-    def get_savings_total_for_subcat(self, subcat):
-        query = "SELECT SUM(amount) FROM transactions WHERE type = 'savings' AND subcategory = ?"
-        # Używamy standardowego połączenia sqlite, które masz w klasie
-        cursor = self.conn.cursor()
-        cursor.execute(query, (subcat,))
-        res = cursor.fetchone()
-        return res[0] if res and res[0] else 0.0
+    def get_savings_total_for_subcat(self, subcat, account_id=None):
+        query = """
+            SELECT SUM(amount)
+            FROM transactions
+            WHERE type IN ('savings', 'savings_migration')
+              AND subcategory = ?
+        """
+        params = [subcat]
+        if account_id is not None:
+            query += " AND account_id = ?"
+            params.append(account_id)
+        res = self.conn.execute(query, params).fetchone()[0]
+        return res if res is not None else 0.0
 
     def get_attachment(self, transaction_id):
         # --- ZMIANA: Pobieranie z pliku zamiast z bazy ---
@@ -1010,3 +1093,23 @@ class DatabaseManager:
         if not res: return None
         paid = self.conn.execute("SELECT SUM(amount) FROM transactions WHERE ref_id = ? AND type = 'debtor_repayment'", (d_id,)).fetchone()[0] or 0.0
         return {"name": res[0], "total": res[1], "deadline": res[2], "attachment": res[3], "remaining": res[1] - paid}
+
+    def get_total_balance_all_accounts(self):
+        """
+        Oblicza sumaryczne saldo ze wszystkich kont zdefiniowanych w aplikacji.
+        Metoda niezbędna dla modułu prognozowania (Forecaster).
+        """
+        try:
+            # 1. Pobieramy listę wszystkich ID kont
+            cursor = self.conn.execute("SELECT id FROM accounts")
+            account_ids = [row[0] for row in cursor.fetchall()]
+
+            total_sum = 0.0
+            # 2. Dla każdego konta wywołujemy Twoją istniejącą logikę obliczania salda
+            for acc_id in account_ids:
+                total_sum += self.get_account_balance(acc_id)
+
+            return total_sum
+        except Exception as e:
+            print(f"Błąd sumowania salda wszystkich kont: {e}")
+            return 0.0
