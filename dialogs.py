@@ -888,7 +888,6 @@ class AddSavingsDialog(QDialog):
 
     def open_add_goal_dialog(self):
         from PySide6.QtWidgets import QMessageBox
-        from dialogs import AddGoalDialog
         d = AddGoalDialog(self, self.db)
         if d.exec():
             name, target, default_account_id = d.get_data()
@@ -2023,7 +2022,6 @@ class BillsManagerDialog(QDialog):
         ref_id_str = self.table.item(row, 5).text()
         ref_id = int(ref_id_str) if ref_id_str else None
 
-        from dialogs import BillPaymentConfirmDialog
         pay_dlg = BillPaymentConfirmDialog(self, self.db, desc, amt)
         if pay_dlg.exec():
             res = pay_dlg.get_data()
@@ -2583,7 +2581,6 @@ class ForecastDialog(QDialog):
         self.btn_what_if.clicked.connect(self.open_what_if_dialog)
 
     def open_what_if_dialog(self):
-        from dialogs import WhatIfDialog
         from forecaster import FinanceForecaster
 
         # Inicjalizujemy forecaster, jeśli jeszcze nie istnieje
