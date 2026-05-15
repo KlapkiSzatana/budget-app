@@ -2,10 +2,10 @@
 
 | ID | Błąd | Priorytet | Status |
 |---|---|---|---|
-| #001 | Raport PDF może źle pokazywać salda | 📌 Średni | ⏳ W trakcie |
-| #002 | Etykieta Oszczędności (ten msc): błędnie podaje wartości | 📌 Średni | ⏳ W trakcie |
-| #003 | Nie można dodać wpłaty do celu | 🔥 Krytyczny | ⏳ W trakcie |
-| #004 | Migracja oszczędności na cele nie działa | 🔥 Krytyczny | ⏳ W trakcie |
+| #001 | Raport PDF może źle pokazywać salda | 📌 Średni | ✅ Naprawiony |
+| #002 | Etykieta Oszczędności (ten msc): błędnie podaje wartości | 📌 Średni | ✅ Naprawiony |
+| #003 | Nie można dodać wpłaty do celu | 🔥 Krytyczny | ✅ Naprawiony |
+| ~~#004~~ | ~~Migracja oszczędności na cele nie działa~~ | ~~🔥 Krytyczny~~ | ~~❌ Usunięto~~ |
 | #005 | Lista Zakupów nie generuje pdf (linux bin) | ⚠️ Wysoki | ✅ Naprawiony |
 | #006 | "Pokaż załącznik" nie pokazuje załącznika (Linux bin) | ⚠️ Wysoki | ✅ Naprawiony |
 | #007 | Przewodnik generuje błąd krytyczny | 🔥 Krytyczny | ✅ Naprawiony |
@@ -25,4 +25,4 @@
 
 ---
 
-> Ostatnia aktualizacja: `11.05.2026`
+> Ostatnia aktualizacja: `15.05.2026`
