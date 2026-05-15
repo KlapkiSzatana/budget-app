@@ -39,6 +39,9 @@ jobs:
 
       - name: Build Executable
         shell: bash
+        env:
+          # Globalne wstrzyknięcie katalogu roboczego jako root aplikacji dla wszystkich systemów
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
