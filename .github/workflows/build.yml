@@ -43,7 +43,7 @@ jobs:
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             # 1. Budowanie w trybie STANDALONE (bez --onefile, tworzy folder)
             python -m pip install reportlab
-            python -m PyInstaller --noconfirm --windowed \
+            python -m PyInstaller --paths=. --noconfirm --windowed \
               --collect-all reportlab \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
@@ -72,7 +72,7 @@ jobs:
             python -m pip install reportlab
 
             # 2. Budowanie w trybie --onedir z kompletnym zebraniem zainstalowanej biblioteki
-            python -m PyInstaller --noconfirm --onedir --windowed \
+            python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
               --add-data "budget.png:." \
               --icon "budget.png" \
@@ -121,7 +121,7 @@ jobs:
           else
             python -m pip install reportlab
             # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
-            python -m PyInstaller --noconfirm --onedir --windowed \
+            python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
