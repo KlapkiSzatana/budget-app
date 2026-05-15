@@ -52,7 +52,10 @@ jobs:
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
               --name "budget-app" \
+              --hidden-import=config \
               --hidden-import=dialogs \
+              --hidden-import=forecaster \
+              --hidden-import=simulator \
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
@@ -80,7 +83,10 @@ jobs:
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
+              --hidden-import=config \
               --hidden-import=dialogs \
+              --hidden-import=forecaster \
+              --hidden-import=simulator \
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
@@ -131,7 +137,10 @@ jobs:
               --icon "budget.icns" \
               --osx-bundle-identifier "com.klapkiszatana.budget-app" \
               --name "BudgetApp" \
+              --hidden-import=config \
               --hidden-import=dialogs \
+              --hidden-import=forecaster \
+              --hidden-import=simulator \
               --hidden-import=shopping \
               --hidden-import=reports \
               --hidden-import=settings_dialog \
