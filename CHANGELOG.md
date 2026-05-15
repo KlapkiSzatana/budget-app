@@ -10,27 +10,25 @@ Format oparty o standard:
 
 ---
 
-# [2.0.0] - Planned
+# [2.0.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v2.0.0) - 2026-05-15
 
 ## ✨ Added
-- Planowane dodanie modułu prognoz finansowych
-- Planowane dodanie możliwości zgłaszania błędów bezpośrednio przez GitHub
-- Planowane rozszerzenie funkcji raportów PDF
+- Dodanie modułu prognoz finansowych
+- Dodanie możliwości zgłaszania błędów bezpośrednio przez GitHub
+- Rozszerzenie funkcji raportów PDF
 
 ## 🔄 Changed
-- Planowana poprawa obliczeń w systemie celów finansowych
-- Planowane usprawnienie procesu dodawania oraz edycji celów
-- Planowane ulepszenie wyświetlania danych w sekcji oszczędności („Ten miesiąc”)
-- Planowane ulepszenie prezentacji danych w raportach PDF
+- Poprawa obliczeń w systemie celów finansowych
+- Usprawnienie procesu dodawania oraz edycji celów
+- Ulepszenie wyświetlania danych w sekcji oszczędności („Ten miesiąc”)
+- Poprawa prezentacji danych w raportach PDF
 
 ## 🛠 Fixed
-- Planowane poprawki błędów związanych z raportami PDF
-- Planowane poprawki stabilności wybranych modułów aplikacji
-- Planowane poprawki działania mechanizmów odpowiedzialnych za cele finansowe
+- Poprawki błędów związanych z raportami PDF
+- Poprawki stabilności wybranych modułów aplikacji
+- Poprawki działania mechanizmów odpowiedzialnych za cele finansowe
 
 ## 🧹 Technical
-- Planowane optymalizacje wydajności aplikacji
-- Planowane porządki i refaktoryzacja kodu
 - Przygotowanie aplikacji pod dalszy rozwój nowych modułów
 
 ---
