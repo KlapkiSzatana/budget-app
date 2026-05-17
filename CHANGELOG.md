@@ -10,6 +10,29 @@ Format oparty o standard:
 
 ---
 
+# [3.0.0] - Planned
+
+## ✨ Added
+- Planowana rozbudowa systemu prognoz
+- Planowana rozbudowa listy zakupów
+- Planowane dodanie w Ustawieniach aplikacji wyboru języka
+- Planowana rozbudowa systemu tygodniowego
+
+## 🔄 Changed
+- Planowana poprawa obliczeń w systemie prognoz
+- Planowana rozbudowa raportów pdf i zakupów pdf
+
+## 🛠 Fixed
+- Poprawki błędów związanych z PDF
+- Poprawki stabilności wybranych modułów aplikacji
+- Poprawki działania mechanizmów prognoz
+
+## 🧹 Technical
+- Planowanie usunięcie zbędnych linii kodu
+- Przygotowanie aplikacji pod dalszy rozwój nowych modułów
+
+---
+
 # [2.0.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v2.0.0) - 2026-05-15
 
 ## ✨ Added
