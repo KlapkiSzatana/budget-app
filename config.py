@@ -3,7 +3,7 @@ import os
 import gettext
 import json
 
-WERSJA = "2.1.0"
+WERSJA = "2.1.1"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"

@@ -163,9 +163,7 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dodano Języki w ustawieniach
-            - Dodano wybór ściezki bazy danych
-            - Dodano poprawy w Analizach wydatków oraz ulepszono Prognozy
+            - Usunięcie zbędnego opisu
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

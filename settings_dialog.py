@@ -110,7 +110,7 @@ class SettingsDialog(QDialog):
         lang_row.addWidget(self.language_combo, 1)
         language_lay.addLayout(lang_row)
 
-        lang_hint = QLabel(_("PL jest językiem domyślnym. Kolejne języki dopisujesz jako pliki JSON w katalogu locales."))
+        lang_hint = QLabel(_("PL jest językiem domyślnym."))
         lang_hint.setWordWrap(True)
         lang_hint.setStyleSheet("color: gray; font-size: 11px;")
         language_lay.addWidget(lang_hint)
