@@ -1,10 +1,24 @@
-import sqlite3
-import random
 from datetime import datetime, timedelta
+from config import _
 
 class FinanceForecaster:
     def __init__(self, db_manager):
         self.db = db_manager
+        self._rotation_tick = 0
+
+    def _rotate_items(self, items, count, salt=0, tick=None):
+        unique = []
+        seen = set()
+        for item in items:
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            unique.append(item)
+        if not unique:
+            return []
+        rotation_tick = self._rotation_tick if tick is None else tick
+        start = ((rotation_tick + salt) * max(1, count)) % len(unique)
+        return [unique[(start + idx) % len(unique)] for idx in range(min(count, len(unique)))]
 
     def get_predictions(self):
         today = datetime.now().date()
@@ -68,6 +82,7 @@ class FinanceForecaster:
             cat_forecasts, projected_end_month, total_pending_bills,
             current_balance, expected_remaining_income, future_lifestyle_spend
         )
+        self._rotation_tick += 1
 
         return {
             "daily_avg": daily_avg_lifestyle,
@@ -280,6 +295,66 @@ class FinanceForecaster:
             except Exception:
                 return None
 
+        days_left_month = (((now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).date() - now.date()).days
+        income_this_month = self._get_current_month_total_by_type('income')
+        avg_income_3m = self._get_avg_past_months('income', 3)
+        avg_expense_3m = self._get_avg_past_months('expense', 3)
+        current_month_expense = query_sum(
+            "SELECT SUM(amount) FROM transactions WHERE type='expense' AND date LIKE ?",
+            (f"{m_str_this}%",)
+        )
+
+        if days_left_month > 0:
+            safe_daily_budget = max(0.0, (balance + exp_inc - bills) / max(1, days_left_month))
+            alerts_hard.append(
+                f"📆 <b>Budżet dzienny:</b> Po uwzględnieniu rachunków do końca miesiąca zostaje orientacyjnie "
+                f"<b>{safe_daily_budget:.0f} zł dziennie</b>. Prognozowane codzienne tempo wydatków to <b>{(fut_spend / max(1, days_left_month)):.0f} zł</b>."
+            )
+
+        if avg_income_3m > 0:
+            income_ratio = (income_this_month / avg_income_3m) * 100
+            alerts_hard.append(
+                f"💼 <b>Tempo wpływów:</b> Wpływy w tym miesiącu osiągnęły <b>{income_ratio:.0f}%</b> średniej z 3 miesięcy "
+                f"({income_this_month:.0f} zł z typowych {avg_income_3m:.0f} zł)."
+            )
+
+        if avg_expense_3m > 0:
+            expense_ratio = (current_month_expense / avg_expense_3m) * 100
+            alerts_hard.append(
+                f"🔥 <b>Wykorzystanie budżetu:</b> Bieżące wydatki to <b>{expense_ratio:.0f}%</b> średniego miesięcznego poziomu "
+                f"z ostatnich 3 miesięcy ({current_month_expense:.0f} zł / {avg_expense_3m:.0f} zł)."
+            )
+
+        next_7_bills = query_sum(
+            "SELECT SUM(amount) FROM pending_bills WHERE is_paid=0 AND due_date >= ? AND due_date <= ?",
+            (now.strftime("%Y-%m-%d"), (now + timedelta(days=7)).strftime("%Y-%m-%d"))
+        )
+        if next_7_bills > 0:
+            alerts_hard.append(
+                f"🧾 <b>Najbliższe rachunki:</b> W ciągu 7 dni masz do opłacenia około <b>{next_7_bills:.0f} zł</b>. "
+                f"To powinno mieć pierwszeństwo przed wydatkami uznaniowymi."
+            )
+
+        biggest_tx = query_val(
+            "SELECT details || '|' || category || '|' || amount FROM transactions WHERE type='expense' AND date LIKE ? ORDER BY amount DESC LIMIT 1",
+            (f"{m_str_this}%",)
+        )
+        if biggest_tx:
+            parts = str(biggest_tx).split("|")
+            if len(parts) >= 3:
+                details, category, amount = parts[0] or _("bez opisu"), parts[1] or _("Inne"), parts[2]
+                alerts_hard.append(
+                    f"🏷️ <b>Największy wydatek:</b> Najmocniejszy pojedynczy koszt miesiąca to <b>{amount} zł</b> "
+                    f"w kategorii <b>{category}</b> ({details})."
+                )
+
+        if cat_forecasts:
+            top_risk = cat_forecasts[0]
+            alerts_hard.append(
+                f"📌 <b>Kategoria pod lupą:</b> <b>{top_risk['name']}</b> jest na poziomie <b>{top_risk['risk']}%</b> "
+                f"historycznej średniej. Wydano {top_risk['current']:.0f} zł przy typowym poziomie {top_risk['predicted']:.0f} zł."
+            )
+
 
 
         avg_groceries_with_sweets = query_val("""
@@ -444,18 +519,28 @@ class FinanceForecaster:
             "🔌 <b>Standby:</b> Urządzenia w trybie czuwania potrafią wygenerować w roku zauważalną kwotę na rachunku za prąd.",
             "📦 <b>Duże paczki:</b> Produkty chemii domowej kupuj w dużych opakowaniach online. Cena za litr/kg bywa o połowę niższa.",
             "📅 <b>Dzień bez wydatków:</b> Ustal jeden dzień w tygodniu, w którym nie wydasz ani jednej złotówki. Buduje to świetną dyscyplinę.",
-            "🛍️ <b>Pozorny zysk:</b> Promocja '-30%' to nie oszczędność, jeśli rzecz nie była Ci potrzebna. Wtedy po prostu wydałeś 70% ceny."
+            "🛍️ <b>Pozorny zysk:</b> Promocja '-30%' to nie oszczędność, jeśli rzecz nie była Ci potrzebna. Wtedy po prostu wydałeś 70% ceny.",
+            "🧾 <b>Rachunki:</b> Przed większym zakupem odłóż pełną kwotę najbliższych rachunków. Dopiero reszta jest realnie wolnym budżetem.",
+            "🏦 <b>Kontrola kont:</b> Jeśli środki są rozbite na kilka kont, raz w tygodniu porównaj ich sumę z prognozą końca miesiąca.",
+            "🎯 <b>Limit kategorii:</b> Dla kategorii, która przekracza średnią, ustaw limit do końca miesiąca zamiast ogólnego zakazu wydawania.",
+            "📍 <b>Zakupy powtarzalne:</b> Jeśli ta sama nazwa pojawia się często w historii, potraktuj ją jak stały koszt i świadomie zaplanuj.",
+            "🧮 <b>Przelicz na dni:</b> Duży zakup podziel przez liczbę dni do wypłaty. To szybko pokazuje, ile dziennego budżetu naprawdę zabiera."
         ]
 
         mix_pool.extend(tips)
 
+        alerts_hard.extend([
+            f"🧮 <b>Bilans miesiąca:</b> Prognoza końca miesiąca wynosi <b>{projected_bal:.0f} zł</b>, a aktualny stan kont to <b>{balance:.0f} zł</b>.",
+            f"📍 <b>Stałe obciążenia:</b> Do końca miesiąca w rachunkach widzę jeszcze <b>{bills:.0f} zł</b> do zabezpieczenia.",
+            f"🔄 <b>Rotacja danych:</b> Analiza bierze pod uwagę wpływy, wydatki, rachunki, kategorie, tempo tygodniowe, oszczędności i opisy transakcji."
+        ])
 
-        cryptogen = random.SystemRandom()
-        alerts_tips = cryptogen.sample(mix_pool, min(1, len(mix_pool)))
+        alerts_hard = self._rotate_items(alerts_hard, 3, salt=0)
+        alerts_tips = self._rotate_items(mix_pool, 2, salt=7)
 
         return alerts_hard, alerts_tips
 
-    def get_what_if_advice(self, simulated_amount, selected_category="Inne", lifestyle_change_pct=0):
+    def get_what_if_advice(self, simulated_amount, selected_category="Inne", lifestyle_change_pct=0, rotation_index=0):
 
         advice = []
         now = datetime.now()
@@ -495,6 +580,28 @@ class FinanceForecaster:
         lifestyle_difference = normal_future_spend - modified_future_spend
 
         safety_threshold = max(1000.0, last_month_income * 0.15)
+
+        def finish_advice(pool):
+            projected_without_purchase = (total_estimated_income - expenses_this_month) - modified_future_spend
+            lifestyle_label = _("oszczędność") if lifestyle_change_pct < 0 else _("obciążenie") if lifestyle_change_pct > 0 else _("neutralny styl")
+            pool.extend([
+                f"🧭 <b>Wpływ scenariusza:</b> Bez jednorazowego zakupu prognoza po zmianie stylu życia wynosi "
+                f"<b>{projected_without_purchase:.0f} zł</b>. Tryb suwaka: <b>{lifestyle_label}</b>.",
+                f"📆 <b>Dni do końca miesiąca:</b> Do końca okresu zostało <b>{days_left}</b> dni, więc każdy 1% zmiany codziennych wydatków "
+                f"ma realny wpływ na saldo końcowe.",
+                f"📊 <b>Próg bezpieczeństwa:</b> Minimalny zapas dla tej symulacji to <b>{safety_threshold:.0f} zł</b>. "
+                f"Wszystko poniżej tej wartości traktuj jako ostrzeżenie.",
+                f"⚖️ <b>Obciążenie vs oszczędność:</b> Sama zmiana codziennych kosztów przesuwa prognozę o około "
+                f"<b>{lifestyle_difference:.0f} zł</b> względem normalnego tempa.",
+                f"🧩 <b>Kategoria symulacji:</b> Aktualny scenariusz analizuję jako <b>{selected_category}</b>, więc rekomendacje dobierają inne punkty cięcia."
+            ])
+            if simulated_amount > 0:
+                month_income_pct = (simulated_amount / total_estimated_income * 100) if total_estimated_income > 0 else 0
+                pool.append(
+                    f"🧾 <b>Skala zakupu:</b> Kwota <b>{simulated_amount:.0f} zł</b> odpowiada około <b>{month_income_pct:.1f}%</b> "
+                    f"szacowanych miesięcznych wpływów."
+                )
+            return self._rotate_items(pool, 3, tick=rotation_index, salt=3)
 
 
         if simulated_amount <= 0:
@@ -595,7 +702,7 @@ class FinanceForecaster:
             else:
 
                 pass
-            return advice
+            return finish_advice(advice)
 
 
         new_projected_end = (total_estimated_income - expenses_this_month) - modified_future_spend - simulated_amount
@@ -701,7 +808,7 @@ class FinanceForecaster:
                 f"do bezpiecznych, nieodczuwalnych ~{simulated_amount/10:.0f} zł/msc."
             )
 
-        return advice
+        return finish_advice(advice)
 
     def _get_spending_days_analysis(self):
         since = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")

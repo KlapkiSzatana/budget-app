@@ -10,6 +10,24 @@ Format oparty o standard:
 
 ---
 
+# [2.1.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v2.1.0) - 2026-05-24
+
+## ✨ Added
+- Dodano Języki w ustawieniach
+- Dodano wybór ściezki bazy danych
+- Dodano poprawy w Analizach wydatków oraz ulepszono Prognozy
+
+## 🔄 Changed
+- Poprawa obliczeń w systemie Analizy
+
+## 🛠 Fixed
+- Poprawki działania mechanizmów odpowiedzialnych za Prognozy
+
+## 🧹 Technical
+- Przygotowanie aplikacji pod dalszy rozwój nowych modułów
+
+---
+
 # [2.0.0](https://github.com/KlapkiSzatana/budget-app/releases/tag/v2.0.0) - 2026-05-15
 
 ## ✨ Added

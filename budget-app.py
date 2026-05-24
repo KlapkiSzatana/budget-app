@@ -95,8 +95,19 @@ class BudgetApp(QMainWindow):
         from settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, self.db)
         if dlg.exec():
+            self.apply_language_ui()
             self.apply_module_visibility()
             self.load_transactions()
+
+    def apply_language_ui(self):
+        import config as app_config
+        app_config.install_language(app_config.get_language_code())
+        self.setWindowTitle(app_config.APPNAME)
+        app = QApplication.instance()
+        if app:
+            app.setApplicationDisplayName(app_config.APPNAME)
+        if hasattr(self, "menu_manager"):
+            self.menu_manager.setup_all_menus()
 
     def apply_module_visibility(self):
         show_lia_mod = self.db.get_config_bool("show_liabilities", True)

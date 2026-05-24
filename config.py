@@ -1,8 +1,9 @@
 import sys
 import os
 import gettext
+import json
 
-WERSJA = "2.0.0"
+WERSJA = "2.1.0"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"
@@ -25,12 +26,132 @@ if not os.path.exists(APP_DIR):
 
 ERROR_LOG_PATH = os.path.join(APP_DIR, "error_log.txt")
 CRASH_LOG_PATH = os.path.join(APP_DIR, "crash_log.txt")
+APP_SETTINGS_PATH = os.path.join(APP_DIR, "app_settings.json")
+DEFAULT_LANGUAGE = "pl"
+LANGUAGE_NAMES = {
+    "pl": "Polski",
+    "en": "English",
+}
+LANGUAGE_FLAGS = {
+    "pl": "🇵🇱",
+    "en": "🇬🇧",
+}
+_json_translations = {}
+_gettext_translator = gettext.NullTranslations()
+_current_language = DEFAULT_LANGUAGE
 
-try:
-    translator = gettext.translation('base', LOCALEDIR, fallback=True)
-    _ = translator.gettext
-except Exception:
-    def _(s): return s
+
+def _load_app_settings():
+    try:
+        if os.path.exists(APP_SETTINGS_PATH):
+            with open(APP_SETTINGS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {}
+
+
+def _save_app_settings(settings):
+    try:
+        os.makedirs(APP_DIR, exist_ok=True)
+        with open(APP_SETTINGS_PATH, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
+
+def normalize_language_code(language):
+    return str(language or DEFAULT_LANGUAGE).strip().lower().replace("-", "_").split("_")[0] or DEFAULT_LANGUAGE
+
+
+def discover_languages():
+    languages = {DEFAULT_LANGUAGE}
+    if os.path.isdir(LOCALEDIR):
+        for name in os.listdir(LOCALEDIR):
+            path = os.path.join(LOCALEDIR, name)
+            if os.path.isfile(path) and name.lower().endswith(".json"):
+                languages.add(normalize_language_code(os.path.splitext(name)[0]))
+    return sorted(languages)
+
+
+def get_language_code():
+    settings = _load_app_settings()
+    return normalize_language_code(settings.get("language", DEFAULT_LANGUAGE))
+
+
+def set_language_code(language):
+    settings = _load_app_settings()
+    settings["language"] = normalize_language_code(language)
+    _save_app_settings(settings)
+
+
+def display_language_name(language):
+    code = normalize_language_code(language)
+    flag = LANGUAGE_FLAGS.get(code, "🏳")
+    name = LANGUAGE_NAMES.get(code, code.upper())
+    return f"{flag} {name} ({code})"
+
+
+def _load_json_translations(language):
+    path = os.path.join(LOCALEDIR, f"{language}.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def install_language(language=None, persist=False):
+    global _current_language, _json_translations, _gettext_translator
+    selected = normalize_language_code(language or get_language_code())
+    _current_language = selected
+    _json_translations = {} if selected == DEFAULT_LANGUAGE else _load_json_translations(selected)
+    _gettext_translator = gettext.translation('base', LOCALEDIR, languages=[selected], fallback=True)
+    if persist:
+        set_language_code(selected)
+    refresh_language_constants()
+    return selected
+
+
+def _(s):
+    source = str(s)
+    if _current_language != DEFAULT_LANGUAGE:
+        translated = _json_translations.get(source)
+        if translated:
+            return str(translated)
+        gettext_value = _gettext_translator.gettext(source)
+        if gettext_value != source:
+            return gettext_value
+    return source
+
+
+def get_database_dir():
+    settings = _load_app_settings()
+    directory = settings.get("database_dir") or APP_DIR
+    directory = os.path.abspath(os.path.expanduser(str(directory)))
+    return directory
+
+
+def set_database_dir(directory):
+    settings = _load_app_settings()
+    settings["database_dir"] = os.path.abspath(os.path.expanduser(str(directory or APP_DIR)))
+    _save_app_settings(settings)
+
+
+def get_database_path(db_name="budzet.db"):
+    directory = get_database_dir()
+    os.makedirs(directory, exist_ok=True)
+    return os.path.join(directory, db_name)
+
+
+def get_attachments_dir():
+    directory = os.path.join(get_database_dir(), "attachments")
+    os.makedirs(directory, exist_ok=True)
+    return directory
 
 APPNAME = _("Budżet Domowy")
 
@@ -43,6 +164,22 @@ DAYS_PL = [
     _("Poniedziałek"), _("Wtorek"), _("Środa"), _("Czwartek"),
     _("Piątek"), _("Sobota"), _("Niedziela")
 ]
+
+
+def refresh_language_constants():
+    global APPNAME
+    APPNAME = _("Budżet Domowy")
+    MONTH_NAME[:] = [
+        _("Styczeń"), _("Luty"), _("Marzec"), _("Kwiecień"), _("Maj"), _("Czerwiec"),
+        _("Lipiec"), _("Sierpień"), _("Wrzesień"), _("Październik"), _("Listopad"), _("Grudzień")
+    ]
+    DAYS_PL[:] = [
+        _("Poniedziałek"), _("Wtorek"), _("Środa"), _("Czwartek"),
+        _("Piątek"), _("Sobota"), _("Niedziela")
+    ]
+
+
+install_language(get_language_code())
 
 def setup_crash_handlers():
     import faulthandler

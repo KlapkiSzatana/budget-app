@@ -48,6 +48,7 @@ jobs:
             python -m pip install reportlab
             python -m PyInstaller --paths=. --noconfirm --windowed \
               --collect-all reportlab \
+              --add-data "locales;locales" \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
@@ -80,6 +81,7 @@ jobs:
             # 2. Budowanie w trybie --onedir z kompletnym zebraniem zainstalowanej biblioteki
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
+              --add-data "locales:locales" \
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
@@ -132,6 +134,7 @@ jobs:
             # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
+              --add-data "locales:locales" \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
               --icon "budget.icns" \
@@ -160,11 +163,9 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dodanie modułu prognoz finansowych
-            - Dodanie możliwości zgłaszania błędów bezpośrednio przez GitHub
-            - Poprawa obliczeń w systemie celów finansowych
-            - Poprawki działania mechanizmów odpowiedzialnych za cele finansowe
-            - Ulepszenie wyświetlania danych w sekcji oszczędności („Ten miesiąc”)
+            - Dodano Języki w ustawieniach
+            - Dodano wybór ściezki bazy danych
+            - Dodano poprawy w Analizach wydatków oraz ulepszono Prognozy
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

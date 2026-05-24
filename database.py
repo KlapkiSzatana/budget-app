@@ -3,14 +3,16 @@ import os
 import json
 import uuid
 from datetime import datetime, timedelta
+import config
 from config import APP_DIR, _
 
 class DatabaseManager:
     def __init__(self, db_name="budzet.db"):
-        self.db_path = os.path.join(APP_DIR, db_name)
+        self.db_name = db_name
+        self.db_path = config.get_database_path(db_name)
 
         # --- NOWE: Folder na załączniki ---
-        self.attachments_dir = os.path.join(APP_DIR, "attachments")
+        self.attachments_dir = config.get_attachments_dir()
         if not os.path.exists(self.attachments_dir):
             os.makedirs(self.attachments_dir, exist_ok=True)
 
@@ -19,6 +21,26 @@ class DatabaseManager:
         self.update_goals_table_structure()
         self.run_fix_savings_names()
         self.initialize_config()
+
+    def switch_database_dir(self, directory):
+        """Przełącza aktywny katalog bazy i inicjalizuje nową bazę, jeśli trzeba."""
+        target_dir = os.path.abspath(os.path.expanduser(str(directory or APP_DIR)))
+        os.makedirs(target_dir, exist_ok=True)
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+
+        config.set_database_dir(target_dir)
+        self.db_path = config.get_database_path(self.db_name)
+        self.attachments_dir = config.get_attachments_dir()
+        os.makedirs(self.attachments_dir, exist_ok=True)
+        self.conn = sqlite3.connect(self.db_path)
+        self.create_tables()
+        self.update_goals_table_structure()
+        self.run_fix_savings_names()
+        self.initialize_config()
+        return self.db_path
 
     def create_tables(self):
         # 1. Podstawowe tabele

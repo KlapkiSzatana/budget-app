@@ -13,6 +13,7 @@
 | #009 | Nie eksportuje potwierdzenia (Windows, MacOS)| ⚠️ Wysoki | ✅ Naprawiony |
 | #010 | Nie pokazuje modyfikatorów przy skrótach klawiaturowych (Windows) | ⚠️ Wysoki | ✅ Naprawiony |
 | #011 | Lista Zakupów nie generuje pdf (Windows, MacOS) | ⚠️ Wysoki | ✅ Naprawiony |
+| #012 | Po zmianie języka trzeba ręcznie uruchomić ponownie aplikacje | 📌 Średni | 🚀 W następnej wersji |
 
 ---
 
@@ -25,4 +26,4 @@
 
 ---
 
-> Ostatnia aktualizacja: `15.05.2026`
+> Ostatnia aktualizacja: `24.05.2026`

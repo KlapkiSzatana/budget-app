@@ -1,6 +1,6 @@
 # Maintainer: KlapkiSzatana
 pkgname=budget-app
-pkgver=2.0.0
+pkgver=2.1.0
 pkgrel=1
 pkgdesc="Zarządzanie Budżetem Domowym"
 arch=('any')
@@ -21,15 +21,15 @@ source=("budget-app.py"
         "simulator.py")
 
 # Sumy kontrolne wygenerujesz potem komendą updpkgsums
-sha256sums=('3e0a2d2663ed6351993ca66350132e147498a295449a2a20528e0d665696398b'
-            'd8d7168291773bd06e331c30beb0c7db31310c890d190dc57a1b2d4b5ca3ba96'
-            'e76c0a0c3260930af520a6764cd148c6dc05330cb73de0d05f7198324a076e5d'
-            'cc906f4dac91b8ec09118ab8e89cfbcb0b055f04a087a1b576dfbac6837b3c67'
+sha256sums=('2a9ce2e55a245b33bdb1104725f6b69e59cd0277bf5f521986e0c18ebf8000be'
+            '6b5467b9578b2dbdbe073d5218527e981ba2a898d289c273523c4524173b500e'
+            '6a1e8f8094b25c591f0898d246fd90750a407bf0e2c3927ccf80e67f77907491'
+            '919c3ab66e5d5d1f8aeb65cf975389a477f4d19a83905b89d7a2a06d632d275d'
             'b672692d70a0fead5414ae80cef3691c53b71aabdea351d771f88d6f7284b199'
-            'c13891a37d50dc650e7a920aaf0239454ca324c4d5ae878c0868f0b038023b08'
+            '76a03b91ead92c647b87cc04b47be11a77f392359ed1472018426ea0694f1c19'
             '923604e3e10c602c6d949b908fe5e2c07064e6673c38c1e3e9c0255dbb819445'
             'f8e73616b675620be4c8d93d1c942502fd6932ca9c01ebf6ffe7051fc61c32f6'
-            '97fbab80fd40b8cf81f09b97b0d55e8c22c30525df775413130cd0d4e7f88bd7'
+            '907ca460f882f85e83937f026390bfe6c4664846fa42b9d9c076930108b93d2f'
             'feaa2e2ee977132d1c66be4d06910d8d9be419ba9a5445f6a531fb63434bfcf7')
 
 package() {

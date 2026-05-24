@@ -2577,7 +2577,7 @@ class ForecastDialog(QDialog):
         # Timer do odświeżania porad i danych
         self.ai_timer = QTimer(self)
         self.ai_timer.timeout.connect(self.refresh_data)
-        self.ai_timer.start(20000) # 20 sekund
+        self.ai_timer.start(30000) # 30 sekund
         self.btn_what_if.clicked.connect(self.open_what_if_dialog)
 
     def open_what_if_dialog(self):
@@ -2842,6 +2842,7 @@ class WhatIfDialog(QDialog):
         self.db = db_manager
         self.forecaster = forecaster
         self.simulator = WhatIfSimulator(self.forecaster)
+        self.advice_rotation_index = 0
 
         # Pobieramy stan początkowy bazy
         self.simulator.load_current_state()
@@ -2849,6 +2850,13 @@ class WhatIfDialog(QDialog):
         self.setWindowTitle(_("Symulator finansowy \"Co jeśli?\""))
         self.resize(620, 750)  # Sztywny, komfortowy wymiar okna
         self.init_ui()
+        self.recalculate()
+        self.advice_timer = QTimer(self)
+        self.advice_timer.timeout.connect(self.rotate_advice)
+        self.advice_timer.start(30000)
+
+    def rotate_advice(self):
+        self.advice_rotation_index += 1
         self.recalculate()
 
     def init_ui(self):
@@ -3170,7 +3178,15 @@ class WhatIfDialog(QDialog):
                 widget.deleteLater()
 
         # Pobieramy najnowsze spersonalizowane rekomendacje z uwzględnieniem dynamicznej kwoty i suwaka!
-        advices = self.forecaster.get_what_if_advice(total_virtual_expenses, detected_category, slider_value)
+        if slider_value != 0 or total_virtual_expenses > 0:
+            advices = self.forecaster.get_what_if_advice(
+                total_virtual_expenses,
+                detected_category,
+                slider_value,
+                rotation_index=self.advice_rotation_index
+            )
+        else:
+            advices = []
 
         # Budujemy nowe, czytelniejsze kafelki
         for adv in advices:

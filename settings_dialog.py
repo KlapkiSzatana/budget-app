@@ -1,8 +1,11 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
                                QCheckBox, QPushButton, QDialogButtonBox,
                                QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit,
-                               QColorDialog, QMessageBox)
+                               QColorDialog, QMessageBox, QComboBox, QLabel,
+                               QFileDialog)
 from PySide6.QtCore import Qt
+import os
+import config
 from config import _
 
 class SettingsDialog(QDialog):
@@ -10,7 +13,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.setWindowTitle(_("Ustawienia i Konta"))
-        self.resize(550, 650)
+        self.resize(620, 760)
         layout = QVBoxLayout(self)
 
 
@@ -56,6 +59,7 @@ class SettingsDialog(QDialog):
 
 
         acc_group = QGroupBox(_("Zarządzanie kontami"))
+        acc_group.setMaximumHeight(300)
         acc_lay = QVBoxLayout(acc_group)
 
 
@@ -90,6 +94,44 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(acc_group)
 
+        language_group = QGroupBox(_("Język aplikacji"))
+        language_lay = QVBoxLayout(language_group)
+
+        lang_row = QHBoxLayout()
+        lang_row.addWidget(QLabel(_("Wybierz język:")))
+        self.language_combo = QComboBox()
+        self.language_codes = config.discover_languages()
+        current_language = config.get_language_code()
+        for code in self.language_codes:
+            self.language_combo.addItem(config.display_language_name(code), code)
+        current_idx = self.language_combo.findData(current_language)
+        if current_idx >= 0:
+            self.language_combo.setCurrentIndex(current_idx)
+        lang_row.addWidget(self.language_combo, 1)
+        language_lay.addLayout(lang_row)
+
+        lang_hint = QLabel(_("PL jest językiem domyślnym. Kolejne języki dopisujesz jako pliki JSON w katalogu locales."))
+        lang_hint.setWordWrap(True)
+        lang_hint.setStyleSheet("color: gray; font-size: 11px;")
+        language_lay.addWidget(lang_hint)
+        layout.addWidget(language_group)
+
+        db_group = QGroupBox(_("Katalog bazy danych"))
+        db_lay = QVBoxLayout(db_group)
+        db_row = QHBoxLayout()
+        self.database_dir_edit = QLineEdit()
+        self.database_dir_edit.setReadOnly(True)
+        self.database_dir_edit.setText(config.get_database_dir())
+        btn_choose_db_dir = QPushButton(_("Wybierz katalog"))
+        btn_choose_db_dir.clicked.connect(self.choose_database_dir)
+        db_row.addWidget(self.database_dir_edit, 1)
+        db_row.addWidget(btn_choose_db_dir)
+        db_lay.addLayout(db_row)
+        db_hint = QLabel(_("Jeśli nie zmienisz katalogu, aplikacja używa dotychczasowej lokalizacji domyślnej."))
+        db_hint.setWordWrap(True)
+        db_hint.setStyleSheet("color: gray; font-size: 11px;")
+        db_lay.addWidget(db_hint)
+        layout.addWidget(db_group)
 
         self.refresh_accounts()
 
@@ -109,6 +151,22 @@ class SettingsDialog(QDialog):
             btn_cancel.setStyleSheet(exp_style)
 
         layout.addWidget(self.buttons)
+
+    def choose_database_dir(self):
+        start_dir = self.database_dir_edit.text().strip() or config.get_database_dir()
+        start_dir = os.path.abspath(os.path.expanduser(start_dir))
+        if not os.path.isdir(start_dir):
+            start_dir = config.get_database_dir()
+        os.makedirs(start_dir, exist_ok=True)
+
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            _("Wybierz katalog bazy danych"),
+            start_dir,
+            QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontUseNativeDialog
+        )
+        if directory:
+            self.database_dir_edit.setText(os.path.abspath(directory))
 
     def refresh_accounts(self):
         self.acc_table.setRowCount(0)
@@ -177,6 +235,19 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, _("Błąd"), _("Nie udało się dodać konta."))
 
     def save_and_close(self):
+        selected_db_dir = self.database_dir_edit.text().strip() or config.get_database_dir()
+        selected_db_dir = os.path.abspath(os.path.expanduser(selected_db_dir))
+        if selected_db_dir != config.get_database_dir():
+            try:
+                self.db.switch_database_dir(selected_db_dir)
+            except Exception as error:
+                QMessageBox.critical(self, _("Błąd"), _("Nie udało się przełączyć katalogu bazy:\n{}").format(error))
+                return
+
+        selected_language = self.language_combo.currentData() or config.DEFAULT_LANGUAGE
+        config.install_language(selected_language, persist=True)
+        self.db.set_config("language", selected_language)
+
         self.db.set_config("show_liabilities", self.cb_liabilities.isChecked())
         self.db.set_config("show_debtors", self.cb_debtors.isChecked())
         self.db.set_config("show_shopping", self.cb_shopping.isChecked())
