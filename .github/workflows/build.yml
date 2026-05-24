@@ -48,7 +48,7 @@ jobs:
             python -m pip install reportlab
             python -m PyInstaller --paths=. --noconfirm --windowed \
               --collect-all reportlab \
-              --add-data "locales;." \
+              --add-data "locales;locales" \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
@@ -61,6 +61,8 @@ jobs:
               --hidden-import=reports \
               --hidden-import=settings_dialog \
               budget-app.py
+
+            mv dist/budget-app/_internal/locales dist/budget-app/locales
 
             # 2. Tworzenie instalatora za pomocą Inno Setup
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
@@ -81,7 +83,7 @@ jobs:
             # 2. Budowanie w trybie --onedir z kompletnym zebraniem zainstalowanej biblioteki
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
-              --add-data "locales:." \
+              --add-data "locales:locales" \
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
@@ -93,6 +95,8 @@ jobs:
               --hidden-import=reports \
               --hidden-import=settings_dialog \
               budget-app.py
+
+            mv dist/BudgetApp/_internal/locales dist/BudgetApp/locales
 
             # USUWANIE PROBLEMATYCZNYCH BIBLIOTEK SYSTEMOWYCH
             # 1. Usuwamy readline (rozwiązuje błąd rl_trim_arg_from_keyseq w /bin/sh)
@@ -134,7 +138,7 @@ jobs:
             # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
-              --add-data "locales:." \
+              --add-data "locales:locales" \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
               --icon "budget.icns" \
@@ -148,6 +152,9 @@ jobs:
               --hidden-import=reports \
               --hidden-import=settings_dialog \
               budget-app.py
+
+            mv dist/BudgetApp.app/Contents/MacOS/_internal/locales \
+            dist/BudgetApp.app/Contents/MacOS/locales
 
             # 6. Pakowanie folderu aplikacji do formatu .dmg
             hdiutil create -volname "BudgetApp" -srcfolder dist/BudgetApp.app -ov -format UDZO dist/BudgetApp_macos.dmg
