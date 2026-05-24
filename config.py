@@ -11,10 +11,18 @@ APP_ID = "budget-app"
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
+
+    INTERNAL_DIR = os.path.join(BASE_DIR, "_internal")
+
+    if os.path.exists(os.path.join(INTERNAL_DIR, "locales")):
+        LOCALEDIR = os.path.join(INTERNAL_DIR, "locales")
+    else:
+        LOCALEDIR = os.path.join(BASE_DIR, "locales")
+
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    LOCALEDIR = os.path.join(BASE_DIR, "locales")
 
-LOCALEDIR = os.path.join(BASE_DIR, 'locales')
 USER_HOME = os.path.expanduser("~")
 APP_DIR = os.path.join(USER_HOME, ".BudgetApp")
 
@@ -27,15 +35,19 @@ if not os.path.exists(APP_DIR):
 ERROR_LOG_PATH = os.path.join(APP_DIR, "error_log.txt")
 CRASH_LOG_PATH = os.path.join(APP_DIR, "crash_log.txt")
 APP_SETTINGS_PATH = os.path.join(APP_DIR, "app_settings.json")
+
 DEFAULT_LANGUAGE = "pl"
+
 LANGUAGE_NAMES = {
     "pl": "Polski",
     "en": "English",
 }
+
 LANGUAGE_FLAGS = {
     "pl": "🇵🇱",
     "en": "🇬🇧",
 }
+
 _json_translations = {}
 _gettext_translator = gettext.NullTranslations()
 _current_language = DEFAULT_LANGUAGE
