@@ -59,6 +59,7 @@ rm -rf build dist budget-app.spec
 
 python -m PyInstaller --noconfirm --clean --onedir --windowed \
   --name budget-app \
+  --add-data "locales:locales"
   --add-data "budget.png:." \
   budget-app.py
 ```
