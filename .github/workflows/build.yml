@@ -48,7 +48,7 @@ jobs:
             python -m pip install reportlab
             python -m PyInstaller --paths=. --noconfirm --windowed \
               --collect-all reportlab \
-              --add-data "locales;locales" \
+              --add-data "locales;." \
               --add-data "budget.png;." \
               --version-file "file_version_info.txt" \
               --icon "budget.ico" \
@@ -81,7 +81,7 @@ jobs:
             # 2. Budowanie w trybie --onedir z kompletnym zebraniem zainstalowanej biblioteki
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
-              --add-data "locales:locales" \
+              --add-data "locales:." \
               --add-data "budget.png:." \
               --icon "budget.png" \
               --name "BudgetApp" \
@@ -134,7 +134,7 @@ jobs:
             # 5. Dla macOS: budowanie w trybie --onedir (wymagane dla .app)
             python -m PyInstaller --paths=. --noconfirm --onedir --windowed \
               --collect-all reportlab \
-              --add-data "locales:locales" \
+              --add-data "locales:." \
               --add-data "budget.png:." \
               --add-data "budget.icns:." \
               --icon "budget.icns" \
