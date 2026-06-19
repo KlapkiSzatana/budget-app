@@ -2,8 +2,8 @@
 #
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2, 1, 1, 0),
-    prodvers=(2, 1, 1, 0),
+    filevers=(3, 0, 0, 0),
+    prodvers=(3, 0, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -18,12 +18,12 @@ VSVersionInfo(
         '041504b0',
         [StringStruct('CompanyName', 'KlapkiSzatana'),
         StringStruct('FileDescription', 'Zarządzanie Budżetem Domowym'),
-        StringStruct('FileVersion', '2.1.1'),
+        StringStruct('FileVersion', '3.0'),
         StringStruct('InternalName', 'budget-app'),
         StringStruct('LegalCopyright', '© 2026 KlapkiSzatana'),
         StringStruct('OriginalFilename', 'budget-app.exe'),
         StringStruct('ProductName', 'Budżet Domowy'),
-        StringStruct('ProductVersion', '2.1.1')])
+        StringStruct('ProductVersion', '3.0')])
       ]),
     VarFileInfo([VarStruct('Translation', [1045, 1200])]) # 1045 = Polski
   ]

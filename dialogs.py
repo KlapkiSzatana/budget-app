@@ -15,6 +15,11 @@ try:
 except ImportError:
     shiboken = None
 
+def space_button_box(button_box, spacing=12):
+    layout = button_box.layout()
+    if layout:
+        layout.setSpacing(spacing)
+
 class ProcessingDialog(QDialog):
     def __init__(self, parent=None, title=None, label_text=None):
         super().__init__(parent)
@@ -351,6 +356,7 @@ class IncomeDialog(QDialog):
         # --- STYLIZACJA PRZYCISKÓW GŁÓWNYCH ---
         from PySide6.QtWidgets import QDialogButtonBox
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(bb)
         btn_save = bb.button(QDialogButtonBox.Save)
         btn_cancel = bb.button(QDialogButtonBox.Cancel)
 
@@ -501,6 +507,7 @@ class AddExpenseDialog(QDialog):
         self.btn_attach.clicked.connect(self.select_attachment)
 
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(bb)
         btn_save = bb.button(QDialogButtonBox.Save)
         btn_cancel = bb.button(QDialogButtonBox.Cancel)
 
@@ -622,6 +629,7 @@ class AddGoalDialog(QDialog):
 
         # --- PRZYCISKI (Ręczna stylizacja ButtonBox) ---
         self.bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(self.bb)
         self.bb.accepted.connect(self.accept)
         self.bb.rejected.connect(self.reject)
 
@@ -821,6 +829,7 @@ class AddSavingsDialog(QDialog):
         self.btn_attach.clicked.connect(self.select_attachment)
 
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(bb)
         btn_save = bb.button(QDialogButtonBox.Save)
         btn_cancel = bb.button(QDialogButtonBox.Cancel)
 
@@ -1012,6 +1021,7 @@ class GoalOperationDialog(QDialog):
         self.btn_attach.clicked.connect(self.select_attachment)
 
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(bb)
         btn_save = bb.button(QDialogButtonBox.Save)
         btn_cancel = bb.button(QDialogButtonBox.Cancel)
 
@@ -1275,6 +1285,7 @@ class LiabilitiesDialog(QDialog):
 
         # --- STYLIZACJA PRZYCISKÓW GŁÓWNYCH ---
         self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(self.buttons)
         btn_save = self.buttons.button(QDialogButtonBox.Save)
         btn_cancel = self.buttons.button(QDialogButtonBox.Cancel)
 
@@ -1469,6 +1480,7 @@ class DebtorsDialog(QDialog):
 
         # --- STYLIZACJA PRZYCISKÓW GŁÓWNYCH ---
         self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(self.buttons)
         btn_save = self.buttons.button(QDialogButtonBox.Save)
         btn_cancel = self.buttons.button(QDialogButtonBox.Cancel)
 
@@ -1734,6 +1746,7 @@ class EditDialog(QDialog):
 
         # --- PRZYCISKI GŁÓWNYCH ---
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(bb)
         btn_save = bb.button(QDialogButtonBox.Save)
         btn_cancel = bb.button(QDialogButtonBox.Cancel)
 
@@ -2552,710 +2565,7 @@ class AccountHistoryDialog(QDialog):
             f"<span style='color:{val_color};'>{total_val:.2f} PLN</span>"
         )
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                               QFrame, QProgressBar, QPushButton, QGroupBox)
-from PySide6.QtCore import Qt, QTimer
-from forecaster import FinanceForecaster
 
-class ForecastDialog(QDialog):
-    def __init__(self, parent, db_manager):
-        super().__init__(parent)
-        self.db = db_manager
-        self.forecaster = FinanceForecaster(db_manager)
-        self.setWindowTitle(_("Prognozy Finansowe"))
-        self.resize(1000, 750)
-
-        # Słownik na widżety, które będziemy aktualizować dynamicznie
-        self.live_widgets = {}
-
-        # 1. Budujemy strukturę raz
-        self.setup_ui()
-
-        # 2. Wypełniamy danymi
-        self.refresh_data()
-
-        # Timer do odświeżania porad i danych
-        self.ai_timer = QTimer(self)
-        self.ai_timer.timeout.connect(self.refresh_data)
-        self.ai_timer.start(30000) # 30 sekund
-        self.btn_what_if.clicked.connect(self.open_what_if_dialog)
-
-    def open_what_if_dialog(self):
-        from forecaster import FinanceForecaster
-
-        # Inicjalizujemy forecaster, jeśli jeszcze nie istnieje
-        if not hasattr(self, 'forecaster') or self.forecaster is None:
-            self.forecaster = FinanceForecaster(self.db)
-
-        dlg = WhatIfDialog(self, self.db, self.forecaster)
-        dlg.exec_()
-
-    def setup_ui(self):
-        # Główny layout
-        self.main_layout = QVBoxLayout(self)
-
-        # --- GÓRA: KAFELKI ---
-        self.top_layout = QHBoxLayout()
-        self.card_bal = self._create_kpi_card(_("PROGNOZOWANE SALDO"))
-        self.card_health = self._create_kpi_card(_("ZDROWIE FINANSOWE"))
-        self.card_days = self._create_kpi_card(_("ZEROWE SALDO ZA:"))
-
-        self.top_layout.addWidget(self.card_bal)
-        self.top_layout.addWidget(self.card_health)
-        self.top_layout.addWidget(self.card_days)
-        self.main_layout.addLayout(self.top_layout)
-
-        # --- ŚRODEK ---
-        self.mid_layout = QHBoxLayout()
-
-        # Sekcja kategorii
-        self.cat_box = QGroupBox(_("Estymacja wydatków do końca miesiąca"))
-        self.cat_v = QVBoxLayout(self.cat_box)
-        self.mid_layout.addWidget(self.cat_box, 2)
-
-        # Sekcja porad AI
-        self.alert_box = QGroupBox(_("Analiza i Sugestie"))
-        self.alert_v = QVBoxLayout(self.alert_box)
-        self.mid_layout.addWidget(self.alert_box, 1)
-
-        self.main_layout.addLayout(self.mid_layout)
-
-        # --- DÓŁ ---
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(10)  # Odstęp między przyciskami
-
-        # 1. Przycisk Symulacji (lewa strona)
-        self.btn_what_if = QPushButton(_("🚀 SYMULACJA 'CO JEŚLI'"))
-        self.btn_what_if.setCursor(Qt.PointingHandCursor)
-        self.btn_what_if.setStyleSheet("""
-            QPushButton {
-                border: 2px solid #3498db; color: #3498db; font-weight: bold;
-                padding: 15px; border-radius: 10px; font-size: 14px; background: transparent;
-            }
-            QPushButton:hover { background: #3498db; color: white; }
-        """)
-
-        # 2. Przycisk Zamknij (prawa strona)
-        self.btn_close = QPushButton(_("Zamknij"))
-        self.btn_close.setCursor(Qt.PointingHandCursor)
-        self.btn_close.setStyleSheet("""
-            QPushButton {
-                border: 2px solid #7f8c8d; color: #7f8c8d; font-weight: bold;
-                padding: 15px; border-radius: 10px; font-size: 14px; background: transparent;
-            }
-            QPushButton:hover { background: #7f8c8d; color: white; }
-        """)
-        # Podpięcie zamknięcia okna dialogowego
-        self.btn_close.clicked.connect(self.accept)
-
-        # Dodanie do poziomego układu
-        bottom_layout.addWidget(self.btn_what_if)
-        bottom_layout.addWidget(self.btn_close)
-
-        # Dodanie całości do głównego układu pionowego
-        self.main_layout.addLayout(bottom_layout)
-
-    def refresh_data(self):
-        data = self.forecaster.get_predictions()
-        self.setUpdatesEnabled(False)  # Zapobiega migotaniu interfejsu podczas zmian
-
-        try:
-            # 1. PROGNOZOWANE SALDO
-            bal_lbl = self.card_bal.findChild(QLabel, "val_lbl")
-            projected = data['projected_end_month']
-            bal_lbl.setText(f"{projected:.2f} zł")
-
-            # Kolorowanie: zielony dla plusa, czerwony dla minusa
-            bal_color = "#2ecc71" if projected > 0 else "#e74c3c"
-            bal_lbl.setStyleSheet(f"color: {bal_color}; font-size: 24px; font-weight: bold;")
-            bal_lbl.setToolTip(f"<span style='font-size: 11px;'>{_('Suma obecnego salda, przewidywanych wpływów i rachunków do opłacenia.')}</span>")
-
-            # Dynamiczny podpis pod kafelkiem salda
-            bal_sub = self.card_bal.findChild(QLabel, "sub_lbl")
-            if not bal_sub:
-                bal_sub = QLabel(self.card_bal)
-                bal_sub.setObjectName("sub_lbl")
-                bal_sub.setAlignment(Qt.AlignCenter)
-                self.card_bal.layout().addWidget(bal_sub)
-
-            bal_sub.setText(_("tyle powinno zostać na koniec m-ca"))
-            bal_sub.setStyleSheet("color: gray; font-size: 11px;")
-
-            # 2. HEALTH SCORE
-            health_lbl = self.card_health.findChild(QLabel, "val_lbl")
-            health_lbl.setText(f"{data['health_score']}/100")
-            health_lbl.setToolTip(f"<span style='font-size: 11px;'>{_('Wskaźnik oparty na relacji oszczędności do wydatków i terminowości rachunków.')}</span>")
-
-            # 3. BEZPIECZNY MARGINES
-            days_to_zero = data['days_to_zero']
-            days_lbl = self.card_days.findChild(QLabel, "val_lbl")
-            days_sub = self.card_days.findChild(QLabel, "sub_lbl")
-
-            if not days_sub:
-                days_sub = QLabel(self.card_days)
-                days_sub.setObjectName("sub_lbl")
-                days_sub.setAlignment(Qt.AlignCenter)
-                self.card_days.layout().addWidget(days_sub)
-
-            if days_to_zero >= 999:
-                days_lbl.setText("∞")
-                days_lbl.setStyleSheet("color: #2ecc71; font-size: 24px; font-weight: bold;")
-                days_sub.setText(_("pełne bezpieczeństwo"))
-            else:
-                days_lbl.setText(f"{days_to_zero} dni")
-                # Kolorowanie progresywne
-                if days_to_zero < 3: color = "#e74c3c"
-                elif days_to_zero < 7: color = "#e67e22"
-                else: color = "#95a5a6"
-                days_lbl.setStyleSheet(f"color: {color}; font-size: 24px; font-weight: bold;")
-
-                if days_to_zero == 0:
-                    days_sub.setText(_("brak środków na dziś"))
-                else:
-                    days_sub.setText(_("średnio na tyle dni wystarczy"))
-
-            days_sub.setStyleSheet("color: gray; font-size: 11px;")
-
-            # 4. KATEGORIE (Top 8)
-            self._clear_layout(self.cat_v)
-
-            header_label = QLabel(_("WYDANO W TYM MSC / ŚREDNIA Z 3 M-CY"))
-            header_label.setStyleSheet("font-size: 10px; font-weight: bold; color: gray; margin-bottom: 5px;")
-            header_label.setAlignment(Qt.AlignRight)
-            self.cat_v.addWidget(header_label)
-
-            for cat in data['category_forecasts']:
-                h_layout = QHBoxLayout()
-                cat_name = QLabel(f"<b>{cat['name']}</b>")
-                cat_name.setStyleSheet("font-size: 12px;")
-
-                # Dodajemy info o procencie wykonania normy w tooltipie
-                values_lbl = QLabel(f"{cat['current']:.0f} / {cat['predicted']:.0f} zł")
-                values_lbl.setStyleSheet("font-size: 11px;")
-                values_lbl.setToolTip(f"{cat['risk']}% {_('historycznej średniej')}")
-
-                h_layout.addWidget(cat_name)
-                h_layout.addStretch()
-                h_layout.addWidget(values_lbl)
-                self.cat_v.addLayout(h_layout)
-
-                p_bar = QProgressBar()
-                p_bar.setFixedHeight(6)
-                p_bar.setValue(min(100, cat['risk']))
-                p_bar.setTextVisible(False)
-
-                # Kolor paska: niebieski -> pomarańczowy (>70%) -> czerwony (>90%)
-                if cat['risk'] > 90: p_color = "#e74c3c"
-                elif cat['risk'] > 70: p_color = "#e67e22"
-                else: p_color = "#3498db"
-
-                p_bar.setStyleSheet(f"QProgressBar::chunk {{ background-color: {p_color}; border-radius: 2px; }}")
-                self.cat_v.addWidget(p_bar)
-
-            self.cat_v.addStretch()
-
-            # 5. ALERTY AI
-            self._clear_layout(self.alert_v)
-
-            # Pobieramy bezpiecznie obie listy z danymi
-            alerts_hard = data.get('ai_alerts_hard', [])
-            alerts_tips = data.get('ai_alerts_tips', [])
-
-            # --- BLOK 1: TWARDA ANALIZA (Niebieskie kafelki) ---
-            for msg in alerts_hard:
-                alert_lbl = QLabel()
-                alert_lbl.setTextFormat(Qt.RichText)
-                alert_lbl.setText(msg)
-                alert_lbl.setWordWrap(True)
-                alert_lbl.setStyleSheet("""
-                    padding: 10px;
-                    background: rgba(52, 152, 219, 0.05);
-                    border-left: 4px solid #3498db;
-                    border-radius: 4px;
-                    margin-bottom: 4px;
-                """)
-                self.alert_v.addWidget(alert_lbl)
-
-            # Dodajemy naturalny, elegancki odstęp między analizą a tipami
-            self.alert_v.addSpacing(12)
-
-            # --- BLOK 2: PORADY I SUGESTIE (Szare, pochylone kafelki) ---
-            for msg in alerts_tips:
-                tip_lbl = QLabel()
-                tip_lbl.setTextFormat(Qt.RichText)
-                tip_lbl.setText(msg)
-                tip_lbl.setWordWrap(True)
-                tip_lbl.setStyleSheet("""
-                    padding: 8px 10px;
-                    background: rgba(149, 165, 166, 0.05);
-                    border-left: 4px solid #95a5a6;
-                    border-radius: 4px;
-                    margin-bottom: 4px;
-                    font-style: italic;
-                    color: palette(text);
-                """)
-                self.alert_v.addWidget(tip_lbl)
-
-            self.alert_v.addStretch()
-
-        finally:
-            self.setUpdatesEnabled(True)  # Włączamy rysowanie z powrotem
-
-    def _create_kpi_card(self, title):
-        card = QFrame()
-        card.setStyleSheet("QFrame { border: 1px solid palette(mid); border-radius: 12px; padding: 10px; }")
-        l = QVBoxLayout(card)
-
-        t = QLabel(title)
-        t.setStyleSheet("font-size: 13px; font-weight: bold; color: palette(text);")
-        t.setAlignment(Qt.AlignCenter)
-
-        v = QLabel("--")
-        v.setObjectName("val_lbl") # Nazwa, by łatwo znaleźć widżet przy odświeżaniu
-        v.setStyleSheet("color: palette(text); font-size: 24px; font-weight: bold;")
-        v.setAlignment(Qt.AlignCenter)
-
-        l.addWidget(t); l.addWidget(v)
-        return card
-
-    def _clear_layout(self, layout):
-        """Bezpieczne czyszczenie layoutu w PySide6 bez użycia modułu sip."""
-        while layout.count():
-            item = layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-            else:
-                sub_layout = item.layout()
-                if sub_layout is not None:
-                    self._clear_layout(sub_layout)
-
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                             QSlider, QPushButton, QLineEdit, QListWidget,
-                             QFrame, QGridLayout, QGroupBox, QScrollArea, QWidget)
-from PySide6.QtCore import Qt
-from simulator import WhatIfSimulator  # Importujemy nasz nowy symulator
-
-class WhatIfDialog(QDialog):
-    def __init__(self, parent, db_manager, forecaster):
-        super().__init__(parent)
-        self.db = db_manager
-        self.forecaster = forecaster
-        self.simulator = WhatIfSimulator(self.forecaster)
-        self.advice_rotation_index = 0
-
-        # Pobieramy stan początkowy bazy
-        self.simulator.load_current_state()
-
-        self.setWindowTitle(_("Symulator finansowy \"Co jeśli?\""))
-        self.resize(620, 750)  # Sztywny, komfortowy wymiar okna
-        self.init_ui()
-        self.recalculate()
-        self.advice_timer = QTimer(self)
-        self.advice_timer.timeout.connect(self.rotate_advice)
-        self.advice_timer.start(30000)
-
-    def rotate_advice(self):
-        self.advice_rotation_index += 1
-        self.recalculate()
-
-    def init_ui(self):
-        layout = QVBoxLayout(self)
-
-        # --- TWÓJ ORYGINALNY BAZOWY STYL DLA PRZYCISKÓW ---
-        top_base_style = """
-            QPushButton {
-                font-size: 12px; font-weight: bold; border-radius: 6px;
-                border: 2px solid; background-color: transparent;
-                min-height: 26px; max-height: 26px; padding: 2px 8px;
-            }
-        """
-
-        # --- TWOJE STYLE KOLORYSTYCZNE ---
-        back_style = top_base_style + """
-            QPushButton { color: #7f8c8d; border-color: #95a5a6; }
-            QPushButton:hover { background-color: #7f8c8d; color: #ffffff; }
-        """
-        shop_style = top_base_style + """
-            QPushButton { color: #16a085; border-color: #1abc9c; }
-            QPushButton:hover { background-color: #16a085; color: #ffffff; }
-        """
-        pdf_style = top_base_style + """
-            QPushButton { color: #c0392b; border-color: #e74c3c; }
-            QPushButton:hover { background-color: #c0392b; color: #ffffff; }
-        """
-        close_style = top_base_style + """
-            QPushButton { color: #ba4a00; border-color: #e67e22; }
-            QPushButton:hover { background-color: #ba4a00; color: #ffffff; }
-        """
-
-        # --- NAGŁÓWEK ---
-        title = QLabel(f"<b>{_('Symulator scenariuszy \"Co jeśli?\"')}</b>")
-        title.setStyleSheet("font-size: 16px;")
-        layout.addWidget(title)
-
-        subtitle = QLabel(_("Sprawdź jak decyzje wpłyną na Twoje finanse bez dotykania prawdziwej bazy danych."))
-        subtitle.setStyleSheet("color: gray; margin-bottom: 10px;")
-        layout.addWidget(subtitle)
-
-        # --- PANEL PORÓWNANIA (KAFELKI SYSTEMOWE) ---
-        grid = QGridLayout()
-        layout.addLayout(grid)
-
-        # Kafelek oryginalny
-        self.card_orig = QFrame()
-        self.card_orig.setFrameShape(QFrame.StyledPanel)
-        v_orig = QVBoxLayout(self.card_orig)
-        v_orig.addWidget(QLabel(f"<b>{_('OBECNA PROGNOZA')}</b>"))
-        self.lbl_orig_val = QLabel("0.00 zł")
-        self.lbl_orig_val.setStyleSheet("font-size: 20px; font-weight: bold; color: gray;")
-        self.lbl_orig_days = QLabel(_("Margines: - dni"))
-        v_orig.addWidget(self.lbl_orig_val)
-        v_orig.addWidget(self.lbl_orig_days)
-
-        # Kafelek symulowany
-        self.card_sim = QFrame()
-        self.card_sim.setFrameShape(QFrame.StyledPanel)
-        v_sim = QVBoxLayout(self.card_sim)
-        v_sim.addWidget(QLabel(f"<b>{_('PO SYMULACJI')}</b>"))
-        self.lbl_sim_val = QLabel("0.00 zł")
-        self.lbl_sim_val.setStyleSheet("font-size: 20px; font-weight: bold; color: #2ecc71;")
-        self.lbl_sim_days = QLabel(_("Margines: - dni"))
-        v_sim.addWidget(self.lbl_sim_val)
-        v_sim.addWidget(self.lbl_sim_days)
-
-        grid.addWidget(self.card_orig, 0, 0)
-        grid.addWidget(self.card_sim, 0, 1)
-
-        # --- SUWAK STYLU ŻYCIA ---
-        layout.addWidget(QLabel(f"<b>{_('Zmień codzienne wydatki (np. oszczędzanie na jedzeniu):')}</b>"))
-        h_slider = QHBoxLayout()
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(-50, 50)  # Oszczędność maks. 50% lub wzrost o 50%
-        self.slider.setValue(0)
-        self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(10)
-        self.slider.valueChanged.connect(self.on_slider_changed)
-
-        self.lbl_slider_val = QLabel(_("Normalnie (0%)"))
-        self.lbl_slider_val.setFixedWidth(120)
-        self.lbl_slider_val.setStyleSheet("font-weight: bold;")
-
-        h_slider.addWidget(self.slider)
-        h_slider.addWidget(self.lbl_slider_val)
-        layout.addLayout(h_slider)
-
-        # --- SEKCOWANE DODAWANIE WIRTUALNYCH TRANSAKCJI ---
-        layout.addWidget(QLabel(f"<b>{_('Dodaj wirtualną transakcję jednorazową (np. zakup konsoli, premia):')}</b>"))
-        h_add = QHBoxLayout()
-
-        self.input_name = QLineEdit()
-        self.input_name.setPlaceholderText(_("Nazwa (np. Nowy telefon)"))
-        self.input_name.textChanged.connect(self.recalculate)
-
-        self.input_amount = QLineEdit()
-        self.input_amount.setPlaceholderText(_("Kwota (np. 1500)"))
-        self.input_amount.setFixedWidth(120)  # Stabilna i bezpieczna szerokość pola kwoty
-        self.input_amount.textChanged.connect(self.recalculate)
-
-        self.btn_add_exp = QPushButton(_("Dodaj Koszt (-)"))
-        self.btn_add_exp.setStyleSheet(pdf_style)
-        self.btn_add_exp.clicked.connect(self.add_virtual_expense)
-
-        self.btn_add_inc = QPushButton(_("Dodaj Wpływ (+)"))
-        self.btn_add_inc.setStyleSheet(shop_style)
-        self.btn_add_inc.clicked.connect(self.add_virtual_income)
-
-        h_add.addWidget(self.input_name)
-        h_add.addWidget(self.input_amount)
-        h_add.addWidget(self.btn_add_exp)
-        h_add.addWidget(self.btn_add_inc)
-        layout.addLayout(h_add)
-
-        # --- LISTA AKTYWNYCH MODYFIKATORÓW ---
-        layout.addWidget(QLabel(f"<b>{_('Aktywne wirtualne zmiany:')}</b>"))
-        self.list_modifiers = QListWidget()
-        self.list_modifiers.setMaximumHeight(80)  # Ograniczamy wysokość na rzecz dużego dymka AI
-        layout.addWidget(self.list_modifiers)
-
-        # --- SEKCJA: DYNAMICZNE REKOMENDACJE AI (SCROLLAREA) ---
-        self.ai_advice_group = QGroupBox(_("Analiza i rekomendacje AI"))
-        self.ai_advice_group.setStyleSheet("QGroupBox { font-weight: bold; }")
-        self.ai_advice_group.setFixedHeight(220)  # Zamrożony i nienaruszalny layout grupy
-
-        # Tworzymy ScrollArea
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-        self.scroll_area.setStyleSheet("background-color: transparent;")
-
-        # Kontener wewnętrzny
-        self.scroll_widget = QWidget()
-        self.scroll_widget.setStyleSheet("background-color: transparent;")
-        self.ai_advice_layout = QVBoxLayout(self.scroll_widget)
-        self.ai_advice_layout.setContentsMargins(5, 5, 5, 5)
-        self.ai_advice_layout.setSpacing(6)
-
-        # --- ZMIANA: Etykieta jako zmienna klasy w celu łatwego ukrywania/pokazywania ---
-        self.lbl_ai_advice_placeholder = QLabel(_("Wprowadź kwotę lub wirtualne koszty, aby zobaczyć rekomendacje..."))
-        self.lbl_ai_advice_placeholder.setWordWrap(True)
-        self.lbl_ai_advice_placeholder.setStyleSheet("color: #7f8c8d; font-style: italic; font-size: 12px;")
-        self.ai_advice_layout.addWidget(self.lbl_ai_advice_placeholder)
-
-        self.scroll_area.setWidget(self.scroll_widget)
-
-        # Układ pionowy dla grupy QGroupBox
-        group_layout = QVBoxLayout(self.ai_advice_group)
-        group_layout.addWidget(self.scroll_area)
-
-        layout.addWidget(self.ai_advice_group)
-
-        # --- PODSUMOWANIE DYNAMICZNE ---
-        self.lbl_summary = QLabel("")
-        self.lbl_summary.setWordWrap(True)
-        self.lbl_summary.setStyleSheet("""
-            padding: 10px;
-            border: 1px solid palette(mid);
-            border-radius: 4px;
-            margin-top: 5px;
-            font-size: 12px;
-        """)
-        layout.addWidget(self.lbl_summary)
-
-        # --- PRZYCISKI STOPKI ---
-        h_foot = QHBoxLayout()
-        btn_reset = QPushButton(_("Resetuj symulację"))
-        btn_reset.setStyleSheet(close_style)
-        btn_reset.clicked.connect(self.reset_simulation)
-
-        btn_close = QPushButton(_("Zamknij"))
-        btn_close.setStyleSheet(back_style)
-        btn_close.clicked.connect(self.accept)
-
-        h_foot.addWidget(btn_reset)
-        h_foot.addStretch()
-        h_foot.addWidget(btn_close)
-        layout.addLayout(h_foot)
-
-    def on_slider_changed(self, val):
-        if val == 0:
-            self.lbl_slider_val.setText(_("Normalnie (0%)"))
-        elif val < 0:
-            self.lbl_slider_val.setText(f"{_('Oszczędzasz')}: {val}%")
-        else:
-            self.lbl_slider_val.setText(f"{_('Wydatki')}: +{val}%")
-
-        self.simulator.set_lifestyle_multiplier(val)
-        self.recalculate()
-
-    def add_virtual_expense(self):
-        name = self.input_name.text().strip() or _("Wirtualny koszt")
-        try:
-            amt = float(self.input_amount.text().replace(',', '.'))
-            self.simulator.add_one_off_expense(name, amt)
-            self.list_modifiers.addItem(f"🔴 {_('Wydatek')}: {name} (-{amt:.2f} zł)")
-            self.input_name.blockSignals(True)
-            self.input_amount.blockSignals(True)
-            self.input_name.clear()
-            self.input_amount.clear()
-            self.input_name.blockSignals(False)
-            self.input_amount.blockSignals(False)
-            self.recalculate()
-        except ValueError:
-            pass
-
-    def add_virtual_income(self):
-        name = self.input_name.text().strip() or _("Wirtualny wpływ")
-        try:
-            amt = float(self.input_amount.text().replace(',', '.'))
-            self.simulator.add_one_off_income(name, amt)
-            self.list_modifiers.addItem(f"🟢 {_('Wpływ')}: {name} (+{amt:.2f} zł)")
-            self.input_name.blockSignals(True)
-            self.input_amount.blockSignals(True)
-            self.input_name.clear()
-            self.input_amount.clear()
-            self.input_name.blockSignals(False)
-            self.input_amount.blockSignals(False)
-            self.recalculate()
-        except ValueError:
-            pass
-
-    def reset_simulation(self):
-        self.slider.setValue(0)
-        self.list_modifiers.clear()
-        self.simulator.reset_scenarios()
-        self.recalculate()
-
-    def recalculate(self):
-        # 1. Odpalamy silnik symulacji
-        res = self.simulator.run_simulation()
-        base = self.simulator.base_predictions
-
-        # Dane bazowe
-        base_val = base['projected_end_month']
-        daily_avg = base.get('daily_avg', 300.0)
-        if daily_avg <= 0:
-            daily_avg = 300.0
-
-        base_days = max(0, int(base_val / daily_avg)) if base_val > 0 else 0
-
-        self.lbl_orig_val.setText(f"{base_val:.2f} zł")
-        self.lbl_orig_days.setText(f"{_('Przy obecnym tempie wydatków masz')} <b>{base_days}</b> {_('dni bezpieczeństwa')}")
-
-        # Dane symulowane
-        sim_val = res['projected_end_month']
-        sim_days = max(0, int(sim_val / daily_avg)) if sim_val > 0 else 0
-
-        self.lbl_sim_val.setText(f"{sim_val:.2f} zł")
-        self.lbl_sim_days.setText(f"{_('Przy symulowanym tempie wydatków masz')} <b>{sim_days}</b> {_('dni bezpieczeństwa')}")
-
-        # Kolorystyka wyniku końcowego i podsumowania
-        if sim_val > 0:
-            sim_color = "#2ecc71"
-            self.lbl_summary.setStyleSheet("padding: 10px; border: 1px solid #2ecc71; border-radius: 4px; margin-top: 5px; font-size: 12px;")
-        else:
-            sim_color = "#e74c3c"
-            self.lbl_summary.setStyleSheet("padding: 10px; border: 1px solid #e74c3c; border-radius: 4px; margin-top: 5px; font-size: 12px;")
-
-        self.lbl_sim_val.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {sim_color};")
-        self.lbl_summary.setText(res['simulation_summary'])
-
-        # 2. --- POŁĄCZENIE SYSTEMOWE: DYNAMICZNE PRZELICZANIE KWOT W LOCIE ---
-        total_virtual_expenses = 0.0
-        detected_category = "Inne"
-
-        # KROK A: Pobieramy kwotę z pola tekstowego (nawet przed kliknięciem "Dodaj")
-        if hasattr(self, 'input_amount') and self.input_amount.text().strip():
-            try:
-                raw_amt = self.input_amount.text().replace(',', '.')
-                total_virtual_expenses += float(raw_amt)
-            except ValueError:
-                pass
-
-        # KROK B: Dodajemy do tego kwoty z aktywnych modyfikatorów na liście
-        for i in range(self.list_modifiers.count()):
-            text = self.list_modifiers.item(i).text()
-            if "🔴" in text:
-                try:
-                    parts = text.split("(-")
-                    val_str = parts[1].replace(" zł)", "").strip()
-                    total_virtual_expenses += float(val_str)
-
-                    lower_text = text.lower()
-                    if any(x in lower_text for x in ["auto", "samochód", "paliwo", "opony", "ubezpieczenie"]):
-                        detected_category = "Samochód"
-                    elif any(x in lower_text for x in ["biedronka", "lidl", "jedzenie", "zakupy", "spożywcze"]):
-                        detected_category = "Zakupy"
-                    elif any(x in lower_text for x in ["netflix", "spotify", "kino", "rozrywka", "pub"]):
-                        detected_category = "Rozrywka"
-                except Exception:
-                    pass
-
-        # KROK C: Sprawdzamy wpisaną nazwę pod kątem wykrywania kategorii w locie
-        if hasattr(self, 'input_name') and self.input_name.text().strip():
-            lower_input_name = self.input_name.text().lower()
-            if any(x in lower_input_name for x in ["auto", "samochód", "paliwo", "opony", "ubezpieczenie"]):
-                detected_category = "Samochód"
-            elif any(x in lower_input_name for x in ["biedronka", "lidl", "jedzenie", "zakupy", "spożywcze"]):
-                detected_category = "Zakupy"
-            elif any(x in lower_input_name for x in ["netflix", "spotify", "kino", "rozrywka", "pub"]):
-                detected_category = "Rozrywka"
-
-        slider_value = self.slider.value()
-
-        # --- OBSŁUGA ZNIKANIA PLACEHOLDERA ---
-        # Jeśli są jakieś zmiany (suwak != 0 lub kwota > 0), to ukrywamy placeholder startowy
-        if slider_value != 0 or total_virtual_expenses > 0:
-            self.lbl_ai_advice_placeholder.hide()
-        else:
-            self.lbl_ai_advice_placeholder.show()
-
-        # Czyszczenie starych dynamicznych kafelków (oprócz naszego placeholdera, którego po prostu kontrolujemy przez hide/show)
-        for i in reversed(range(self.ai_advice_layout.count())):
-            item = self.ai_advice_layout.itemAt(i)
-            widget = item.widget()
-            if widget and widget != self.lbl_ai_advice_placeholder:
-                widget.deleteLater()
-
-        # Pobieramy najnowsze spersonalizowane rekomendacje z uwzględnieniem dynamicznej kwoty i suwaka!
-        if slider_value != 0 or total_virtual_expenses > 0:
-            advices = self.forecaster.get_what_if_advice(
-                total_virtual_expenses,
-                detected_category,
-                slider_value,
-                rotation_index=self.advice_rotation_index
-            )
-        else:
-            advices = []
-
-        # Budujemy nowe, czytelniejsze kafelki
-        for adv in advices:
-            lbl = QLabel()
-            lbl.setTextFormat(Qt.RichText)
-            lbl.setText(adv)
-            lbl.setWordWrap(True)  # Pancerne zawijanie tekstu w dymkach
-
-            if "Zagrożenie" in adv or "⚠️" in adv:
-                bg_color = "rgba(192, 57, 43, 0.05)"
-                border_color = "#c0392b"
-            elif "Bezpieczny" in adv or "✅" in adv or "Generujesz" in adv:
-                bg_color = "rgba(39, 174, 96, 0.05)"
-                border_color = "#27ae60"
-            else:
-                bg_color = "rgba(149, 165, 166, 0.05)"
-                border_color = "#95a5a6"
-
-            lbl.setStyleSheet(f"""
-                padding: 10px 12px;
-                background: {bg_color};
-                border-left: 4px solid {border_color};
-                border-radius: 4px;
-                margin-bottom: 6px;
-                font-size: 12px;
-                line-height: 1.4;
-            """)
-            self.ai_advice_layout.addWidget(lbl)
-
-def get_detailed_os_info():
-    """Zwraca czytelny dla człowieka opis systemu operacyjnego wraz z wersją jądra."""
-    try:
-        sys_platform = sys.platform
-
-        # --- 1. WINDOWS ---
-        if sys_platform == "win32":
-            win_release = platform.release() # np. "10" lub "11"
-            win_version = platform.version() # np. "10.0.22631"
-            return f"Windows {win_release} (Wersja: {win_version}, Jądro: NT)"
-
-        # --- 2. MACOS (DARWIN) ---
-        elif sys_platform == "darwin":
-            mac_ver = platform.mac_ver()[0] # np. "14.4"
-            kernel_ver = platform.release() # np. "23.4.0"
-            return f"macOS {mac_ver} (Jądro: Darwin {kernel_ver})"
-
-        # --- 3. LINUX (Arch, Ubuntu itp.) ---
-        elif sys_platform.startswith("linux"):
-            # Próbujemy odczytać dane z /etc/os-release (standard na nowoczesnych dystrybucjach)
-            dist_name = "Linux"
-            if os.path.exists("/etc/os-release"):
-                with open("/etc/os-release", "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    info = {}
-                    for line in lines:
-                        if "=" in line:
-                            k, v = line.strip().split("=", 1)
-                            info[k] = v.strip('"')
-                    # Próbujemy wyciągnąć 'PRETTY_NAME' (np. "Arch Linux" lub "Ubuntu 22.04.4 LTS")
-                    dist_name = info.get("PRETTY_NAME", info.get("NAME", "Linux"))
-
-            kernel_ver = platform.release() # np. "6.12.1-arch1-1"
-            return f"{dist_name} (Jądro: Linux {kernel_ver})"
-
-    except Exception as e:
-        # Fallback w razie jakichkolwiek problemów z uprawnieniami / odczytem
-        return f"{platform.system()} {platform.release()} (Błąd detekcji: {str(e)})"
-
-    return f"{platform.system()} {platform.release()}"
 
 import os
 import sys
@@ -3284,6 +2594,12 @@ class BugReportDialog(QDialog):
         )
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
+        privacy_label = QLabel(
+            _("Do zgłoszenia nie są automatycznie dołączane baza danych, transakcje, załączniki ani logi. Treść opisu trafi do formularza GitHub.")
+        )
+        privacy_label.setWordWrap(True)
+        privacy_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(privacy_label)
         layout.addSpacing(10)
 
         # 2. Tytuł błędu
@@ -3400,12 +2716,15 @@ class BugReportDialog(QDialog):
             f"&body={encoded_body}"
         )
 
-        # Wywołanie systemowe otwarcia URL (zachowaj swój dotychczasowy kod otwierający przeglądarkę)
+        if QDesktopServices.openUrl(QUrl(github_url)):
+            self.accept()
+            return
+
         if os.name == 'nt':
             try:
                 os.startfile(github_url)
-            except Exception:
-                subprocess.Popen(['cmd', '/c', 'start', '', github_url], shell=True)
+            except Exception as e:
+                print(f"Nie udało się otworzyć przeglądarki: {e}")
         else:
             env = dict(os.environ)
             env.pop('LD_LIBRARY_PATH', None)

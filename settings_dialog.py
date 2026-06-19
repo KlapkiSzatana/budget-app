@@ -12,6 +12,8 @@ class SettingsDialog(QDialog):
     def __init__(self, parent, db):
         super().__init__(parent)
         self.db = db
+        self.initial_language = config.get_language_code()
+        self.restart_required = False
         self.setWindowTitle(_("Ustawienia i Konta"))
         self.resize(620, 760)
         layout = QVBoxLayout(self)
@@ -57,6 +59,34 @@ class SettingsDialog(QDialog):
             mod_lay.addWidget(cb)
         layout.addWidget(modules_group)
 
+        sync_group = QGroupBox(_("Synchronizacja LAN"))
+        sync_lay = QVBoxLayout(sync_group)
+
+        self.cb_sync_server = QCheckBox(_("Włącz serwer synchronizacji na PC"))
+        self.cb_sync_server.setChecked(self.db.get_config_bool("sync_server_enabled", True))
+        sync_lay.addWidget(self.cb_sync_server)
+
+        sync_peer_row = QHBoxLayout()
+        sync_peer_row.setSpacing(10)
+        sync_peer_row.addWidget(QLabel(_("Adres telefonu:")))
+        self.sync_peer_url = QLineEdit()
+        self.sync_peer_url.setPlaceholderText("http://192.168.1.50:8765")
+        self.sync_peer_url.setText(str(self.db.get_config("sync_peer_url") or ""))
+        sync_peer_row.addWidget(self.sync_peer_url, 1)
+        sync_lay.addLayout(sync_peer_row)
+
+        try:
+            from budget_sync import local_ipv4_addresses
+            local_urls = ", ".join(f"http://{ip}:8765" for ip in local_ipv4_addresses())
+        except Exception:
+            local_urls = "http://127.0.0.1:8765"
+        sync_hint = QLabel(_("Adresy tego PC dla Androida: {}").format(local_urls))
+        sync_hint.setWordWrap(True)
+        sync_hint.setStyleSheet("color: gray; font-size: 11px;")
+        sync_lay.addWidget(sync_hint)
+
+        layout.addWidget(sync_group)
+
 
         acc_group = QGroupBox(_("Zarządzanie kontami"))
         acc_group.setMaximumHeight(300)
@@ -76,6 +106,7 @@ class SettingsDialog(QDialog):
 
 
         add_acc_lay = QHBoxLayout()
+        add_acc_lay.setSpacing(10)
         self.new_acc_name = QLineEdit()
         self.new_acc_name.setPlaceholderText(_("Nazwa konta"))
         self.new_acc_name.setMaxLength(30)
@@ -98,6 +129,7 @@ class SettingsDialog(QDialog):
         language_lay = QVBoxLayout(language_group)
 
         lang_row = QHBoxLayout()
+        lang_row.setSpacing(10)
         lang_row.addWidget(QLabel(_("Wybierz język:")))
         self.language_combo = QComboBox()
         self.language_codes = config.discover_languages()
@@ -119,6 +151,7 @@ class SettingsDialog(QDialog):
         db_group = QGroupBox(_("Katalog bazy danych"))
         db_lay = QVBoxLayout(db_group)
         db_row = QHBoxLayout()
+        db_row.setSpacing(10)
         self.database_dir_edit = QLineEdit()
         self.database_dir_edit.setReadOnly(True)
         self.database_dir_edit.setText(config.get_database_dir())
@@ -137,6 +170,8 @@ class SettingsDialog(QDialog):
 
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        if self.buttons.layout():
+            self.buttons.layout().setSpacing(12)
         self.buttons.accepted.connect(self.save_and_close)
         self.buttons.rejected.connect(self.reject)
 
@@ -245,6 +280,7 @@ class SettingsDialog(QDialog):
                 return
 
         selected_language = self.language_combo.currentData() or config.DEFAULT_LANGUAGE
+        language_changed = config.normalize_language_code(selected_language) != self.initial_language
         config.install_language(selected_language, persist=True)
         self.db.set_config("language", selected_language)
 
@@ -254,4 +290,13 @@ class SettingsDialog(QDialog):
         self.db.set_config("show_weekly", self.cb_weekly.isChecked())
 
         self.db.set_config("show_forecast", self.cb_forecast.isChecked())
+        self.db.set_config("sync_server_enabled", self.cb_sync_server.isChecked())
+        self.db.set_config("sync_peer_url", self.sync_peer_url.text().strip())
+        if language_changed:
+            QMessageBox.information(
+                self,
+                _("Restart aplikacji"),
+                _("Język został zapisany. Aplikacja zostanie teraz uruchomiona ponownie.")
+            )
+            self.restart_required = True
         self.accept()

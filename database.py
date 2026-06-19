@@ -16,7 +16,7 @@ class DatabaseManager:
         if not os.path.exists(self.attachments_dir):
             os.makedirs(self.attachments_dir, exist_ok=True)
 
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.create_tables()
         self.update_goals_table_structure()
         self.run_fix_savings_names()
@@ -35,7 +35,7 @@ class DatabaseManager:
         self.db_path = config.get_database_path(self.db_name)
         self.attachments_dir = config.get_attachments_dir()
         os.makedirs(self.attachments_dir, exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.create_tables()
         self.update_goals_table_structure()
         self.run_fix_savings_names()
@@ -104,6 +104,9 @@ class DatabaseManager:
             ("transactions", "details", "TEXT DEFAULT ''"),
             ("transactions", "attachment", "TEXT"),
             ("transactions", "ref_id", "INTEGER"),
+            ("transactions", "sync_id", "TEXT"),
+            ("transactions", "updated_at", "TEXT"),
+            ("transactions", "sync_order", "TEXT"),
             # --- DODAJ TE DWIE LINIE PONIŻEJ ---
             ("liabilities", "attachment", "TEXT"),
             ("debtors", "attachment", "TEXT")
@@ -189,6 +192,7 @@ class DatabaseManager:
         self.conn.execute("INSERT OR IGNORE INTO modules VALUES ('shopping_list', 1)")
         self.conn.execute("INSERT OR IGNORE INTO modules VALUES ('weekly_limit', 1)")
 
+        self.ensure_transaction_sync_metadata()
         self.conn.commit()
 
     def initialize_config(self):
@@ -231,6 +235,41 @@ class DatabaseManager:
         self.conn.commit()
 
     # ----------------------------------
+
+    def sync_timestamp(self):
+        return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+    def sync_order_value(self):
+        return f"{self.sync_timestamp()}|pc|{uuid.uuid4().hex}"
+
+    def ensure_transaction_sync_metadata(self):
+        """Nadaje sync_id starym transakcjom i uzupełnia datę aktualizacji."""
+        try:
+            rows = self.conn.execute(
+                "SELECT id FROM transactions WHERE sync_id IS NULL OR TRIM(sync_id)=''"
+            ).fetchall()
+            now = self.sync_timestamp()
+            for (tid,) in rows:
+                self.conn.execute(
+                    "UPDATE transactions SET sync_id=?, updated_at=? WHERE id=?",
+                    (str(uuid.uuid4()), now, tid)
+                )
+            self.conn.execute(
+                "UPDATE transactions SET updated_at=? WHERE updated_at IS NULL OR TRIM(updated_at)=''",
+                (now,)
+            )
+            rows = self.conn.execute(
+                "SELECT id, IFNULL(date, ''), IFNULL(updated_at, '') "
+                "FROM transactions WHERE sync_order IS NULL OR TRIM(sync_order)=''"
+            ).fetchall()
+            for tid, date_value, updated_at in rows:
+                base = updated_at.strip() or f"{date_value or '1970-01-01'}T00:00:00.000000"
+                self.conn.execute(
+                    "UPDATE transactions SET sync_order=? WHERE id=?",
+                    (f"{base}|pc|{int(tid):012d}", tid)
+                )
+        except Exception as e:
+            print(f"Info: nie udało się uzupełnić metadanych sync: {e}")
 
     def get_weekly_config(self):
         cfg = self.get_config("weekly_limit_config")
@@ -377,7 +416,7 @@ class DatabaseManager:
                 if progress_callback:
                     progress_callback(100)
 
-            self.conn = sqlite3.connect(self.db_path)
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.create_tables()
             self.update_goals_table_structure()
             self.run_fix_savings_names()
@@ -386,7 +425,7 @@ class DatabaseManager:
         except Exception as e:
             print(f"Błąd przywracania: {e}")
             if not self.conn:
-                self.conn = sqlite3.connect(self.db_path)
+                self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             return False
 
     def add_transaction(self, date, t_type, category, subcategory, amount, exclude=0, details="", attachment=None, ref_id=None, account_id=1, commit=True):
@@ -400,10 +439,11 @@ class DatabaseManager:
             INSERT INTO transactions (
                 date, type, category, subcategory, amount,
                 currency, exchange_rate, exclude_from_weekly,
-                details, attachment, ref_id, account_id
+                details, attachment, ref_id, account_id, sync_id, updated_at, sync_order
             )
-            VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, ?, ?, ?)""",
-            (date, t_type, category, subcategory, amount, exclude, details, filename, ref_id, account_id))
+            VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (date, t_type, category, subcategory, amount, exclude, details, filename, ref_id, account_id,
+             str(uuid.uuid4()), self.sync_timestamp(), self.sync_order_value()))
 
         if commit:
             self.conn.commit()
@@ -471,15 +511,15 @@ class DatabaseManager:
 
                 self.conn.execute("""
                     UPDATE transactions
-                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, attachment=?, account_id=?
+                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, attachment=?, account_id=?, updated_at=?
                     WHERE id=?
-                """, (tdate, ttype, tcat, tsub, tamt, tdetails, filename, account_id, tid))
+                """, (tdate, ttype, tcat, tsub, tamt, tdetails, filename, account_id, self.sync_timestamp(), tid))
             else:
                 self.conn.execute("""
                     UPDATE transactions
-                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, account_id=?
+                    SET date=?, type=?, category=?, subcategory=?, amount=?, details=?, account_id=?, updated_at=?
                     WHERE id=?
-                """, (tdate, ttype, tcat, tsub, tamt, tdetails, account_id, tid))
+                """, (tdate, ttype, tcat, tsub, tamt, tdetails, account_id, self.sync_timestamp(), tid))
             self.conn.commit()
         except Exception as e:
             print(f"Błąd aktualizacji transakcji: {e}")
@@ -509,6 +549,232 @@ class DatabaseManager:
             return cursor.fetchall()
         except sqlite3.OperationalError:
             return []
+
+    def export_sync_payload(self):
+        """Zwraca dane potrzebne do synchronizacji wpisów z Androidem."""
+        self.ensure_transaction_sync_metadata()
+        self.conn.commit()
+
+        accounts = [
+            {"name": name, "initial_balance": initial, "color": color}
+            for _acc_id, name, initial, color in self.get_accounts()
+        ]
+        categories = self.get_categories()
+        people = self.get_people()
+
+        tx_rows = self.conn.execute("""
+            SELECT t.date, t.type, t.category, t.subcategory, t.amount,
+                   IFNULL(t.exclude_from_weekly, 0), IFNULL(t.details, ''),
+                   IFNULL(t.sync_id, ''), IFNULL(t.updated_at, ''),
+                   IFNULL(t.sync_order, ''),
+                   a.name, IFNULL(a.color, '#7f8c8d')
+            FROM transactions t
+            LEFT JOIN accounts a ON a.id = t.account_id
+            ORDER BY IFNULL(t.sync_order, IFNULL(t.updated_at, '')), t.id
+        """).fetchall()
+        transactions = []
+        for row in tx_rows:
+            transactions.append({
+                "date": row[0],
+                "type": row[1],
+                "category": row[2],
+                "subcategory": row[3],
+                "amount": row[4],
+                "exclude_from_weekly": row[5],
+                "details": row[6],
+                "sync_id": row[7],
+                "updated_at": row[8],
+                "sync_order": row[9],
+                "account_name": row[10] or "Gotówka",
+                "account_color": row[11] or "#7f8c8d",
+            })
+        return {
+            "device": "BudgetApp PC",
+            "accounts": accounts,
+            "categories": categories,
+            "people": people,
+            "transactions": transactions,
+        }
+
+    def import_sync_payload(self, payload):
+        """Scala wpisy z drugiego urządzenia. Nie usuwa lokalnych danych."""
+        if not isinstance(payload, dict):
+            return {"inserted": 0, "updated": 0}
+
+        inserted = 0
+        updated = 0
+        try:
+            for account in payload.get("accounts", []):
+                if isinstance(account, dict):
+                    self._ensure_account_by_name(
+                        account.get("name") or "Gotówka",
+                        float(account.get("initial_balance") or 0.0),
+                        account.get("color") or "#7f8c8d"
+                    )
+
+            for category in payload.get("categories", []):
+                if category:
+                    self.conn.execute("INSERT OR IGNORE INTO categories VALUES (?)", (str(category),))
+
+            for person in payload.get("people", []):
+                if person:
+                    self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (str(person),))
+
+            for tx in payload.get("transactions", []):
+                if not isinstance(tx, dict):
+                    continue
+                change = self._import_sync_transaction(tx)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
+
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        return {"inserted": inserted, "updated": updated}
+
+    def _ensure_account_by_name(self, name, initial=0.0, color="#7f8c8d"):
+        safe_name = str(name or "Gotówka").strip() or "Gotówka"
+        row = self.conn.execute("SELECT id FROM accounts WHERE name=?", (safe_name,)).fetchone()
+        if row:
+            return row[0]
+        cur = self.conn.execute(
+            "INSERT INTO accounts (name, initial_balance, color) VALUES (?, ?, ?)",
+            (safe_name, initial, color or "#7f8c8d")
+        )
+        return cur.lastrowid
+
+    def _resolve_sync_ref(self, t_type, subcategory):
+        if not subcategory:
+            return None
+        if t_type == "liability_repayment":
+            row = self.conn.execute("SELECT id FROM liabilities WHERE name=? LIMIT 1", (subcategory,)).fetchone()
+            return row[0] if row else None
+        if t_type == "debtor_repayment":
+            row = self.conn.execute("SELECT id FROM debtors WHERE name=? LIMIT 1", (subcategory,)).fetchone()
+            return row[0] if row else None
+        if t_type == "goal_deposit":
+            row = self.conn.execute("SELECT id FROM goals WHERE name=? LIMIT 1", (subcategory,)).fetchone()
+            return row[0] if row else None
+        return None
+
+    def _is_legacy_sync_order(self, value):
+        raw = str(value or "").strip()
+        if not raw:
+            return True
+        tail = raw.rsplit("|", 1)[-1]
+        return tail.isdigit()
+
+    def _find_legacy_duplicate_transaction(self, tx, account_id, sync_id, remote_order, remote_has_order):
+        if remote_has_order and not self._is_legacy_sync_order(remote_order):
+            return None
+
+        row = self.conn.execute("""
+            SELECT id
+            FROM transactions
+            WHERE IFNULL(date, '') = ?
+              AND IFNULL(type, '') = ?
+              AND IFNULL(category, '') = ?
+              AND IFNULL(subcategory, '') = ?
+              AND ABS(IFNULL(amount, 0.0) - ?) < 0.000001
+              AND IFNULL(exclude_from_weekly, 0) = ?
+              AND IFNULL(details, '') = ?
+              AND IFNULL(account_id, 1) = ?
+              AND (sync_id IS NULL OR sync_id != ?)
+              AND (
+                    sync_order IS NULL
+                    OR TRIM(sync_order) = ''
+                    OR sync_order GLOB '*|[0-9]*'
+                  )
+            ORDER BY id
+            LIMIT 1
+        """, (
+            str(tx.get("date") or datetime.now().strftime("%Y-%m-%d")),
+            str(tx.get("type") or "expense"),
+            str(tx.get("category") or "Inne"),
+            str(tx.get("subcategory") or ""),
+            float(tx.get("amount") or 0.0),
+            int(tx.get("exclude_from_weekly") or 0),
+            str(tx.get("details") or ""),
+            account_id,
+            sync_id,
+        )).fetchone()
+        return row[0] if row else None
+
+    def _import_sync_transaction(self, tx):
+        sync_id = str(tx.get("sync_id") or "").strip()
+        if not sync_id:
+            return None
+        remote_updated = str(tx.get("updated_at") or self.sync_timestamp())
+        remote_has_order = bool(str(tx.get("sync_order") or "").strip())
+        remote_order = str(tx.get("sync_order") or remote_updated or self.sync_order_value())
+        existing = self.conn.execute(
+            "SELECT id, IFNULL(updated_at, '') FROM transactions WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if existing and existing[1] >= remote_updated:
+            return None
+
+        t_type = str(tx.get("type") or "expense")
+        category = str(tx.get("category") or "Inne")
+        subcategory = str(tx.get("subcategory") or "")
+        account_id = self._ensure_account_by_name(
+            tx.get("account_name") or "Gotówka",
+            0.0,
+            tx.get("account_color") or "#7f8c8d"
+        )
+        if t_type == "income":
+            self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (category,))
+        if t_type == "expense":
+            self.conn.execute("INSERT OR IGNORE INTO categories VALUES (?)", (category,))
+
+        values = (
+            str(tx.get("date") or datetime.now().strftime("%Y-%m-%d")),
+            t_type,
+            category,
+            subcategory,
+            float(tx.get("amount") or 0.0),
+            int(tx.get("exclude_from_weekly") or 0),
+            str(tx.get("details") or ""),
+            self._resolve_sync_ref(t_type, subcategory),
+            account_id,
+            sync_id,
+            remote_updated,
+            remote_order,
+        )
+
+        if existing:
+            self.conn.execute("""
+                UPDATE transactions
+                SET date=?, type=?, category=?, subcategory=?, amount=?,
+                    currency='PLN', exchange_rate=1.0, exclude_from_weekly=?,
+                    details=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
+                WHERE id=?
+            """, values + (existing[0],))
+            return "updated"
+
+        duplicate_id = self._find_legacy_duplicate_transaction(tx, account_id, sync_id, remote_order, remote_has_order)
+        if duplicate_id is not None:
+            self.conn.execute("""
+                UPDATE transactions
+                SET date=?, type=?, category=?, subcategory=?, amount=?,
+                    currency='PLN', exchange_rate=1.0, exclude_from_weekly=?,
+                    details=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
+                WHERE id=?
+            """, values + (duplicate_id,))
+            return "updated"
+
+        self.conn.execute("""
+            INSERT INTO transactions (
+                date, type, category, subcategory, amount,
+                currency, exchange_rate, exclude_from_weekly,
+                details, attachment, ref_id, account_id, sync_id, updated_at, sync_order
+            )
+            VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, NULL, ?, ?, ?, ?, ?)
+        """, values)
+        return "inserted"
 
     def get_year_transactions(self, year_str):
         try:

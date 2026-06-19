@@ -33,6 +33,7 @@ class ShoppingHistoryDialog(QDialog):
         self.selected_list_name = None
 
         main_layout = QHBoxLayout(self)
+        main_layout.setSpacing(14)
 
 
         left_widget = QWidget()
@@ -51,6 +52,7 @@ class ShoppingHistoryDialog(QDialog):
         left_layout.addWidget(self.table_lists)
 
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
 
 
         self.btn_open = QPushButton(_("Otwórz / Edytuj"))
@@ -165,6 +167,7 @@ class ShoppingListDialog(QDialog):
 
 
         h_top = QHBoxLayout()
+        h_top.setSpacing(10)
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText(_("Nazwa listy"))
         self.name_edit.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px; border: 1px solid palette(mid); border-radius: 4px;")
@@ -185,6 +188,7 @@ class ShoppingListDialog(QDialog):
 
         gb_add = QGroupBox(_("Dodaj produkt"))
         h_add = QHBoxLayout()
+        h_add.setSpacing(10)
 
         self.store_combo = QComboBox()
         self.store_combo.setEditable(True)
@@ -231,6 +235,7 @@ class ShoppingListDialog(QDialog):
 
         self.layout.addWidget(QLabel(f"<i>{_('--- Opcje ---')}</i>"))
         h_actions = QHBoxLayout()
+        h_actions.setSpacing(10)
 
         self.btn_history = QPushButton(_("📜 Archiwum"))
         self.btn_history.setStyleSheet(BASE_BTN_STYLE + """

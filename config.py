@@ -2,8 +2,11 @@ import sys
 import os
 import gettext
 import json
+import atexit
+import tempfile
+import time
 
-WERSJA = "2.1.1"
+WERSJA = "3.0"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"
@@ -35,6 +38,61 @@ if not os.path.exists(APP_DIR):
 ERROR_LOG_PATH = os.path.join(APP_DIR, "error_log.txt")
 CRASH_LOG_PATH = os.path.join(APP_DIR, "crash_log.txt")
 APP_SETTINGS_PATH = os.path.join(APP_DIR, "app_settings.json")
+APP_TEMP_OWNER = str(os.getuid()) if hasattr(os, "getuid") else os.environ.get("USERNAME", "user")
+APP_TEMP_DIR = os.path.join(tempfile.gettempdir(), f"{APP_ID}-{APP_TEMP_OWNER}")
+
+_TEMP_FILES_TO_CLEAN = []
+
+
+def _ensure_private_temp_dir():
+    os.makedirs(APP_TEMP_DIR, exist_ok=True)
+    if os.name != "nt":
+        try:
+            os.chmod(APP_TEMP_DIR, 0o700)
+        except OSError:
+            pass
+
+
+def cleanup_temp_files(include_stale=False):
+    targets = list(_TEMP_FILES_TO_CLEAN)
+    if include_stale and os.path.isdir(APP_TEMP_DIR):
+        cutoff = time.time() - 24 * 60 * 60
+        for name in os.listdir(APP_TEMP_DIR):
+            if not name.startswith("budgetapp_"):
+                continue
+            path = os.path.join(APP_TEMP_DIR, name)
+            try:
+                if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                    targets.append(path)
+            except OSError:
+                pass
+
+    for file_path in targets:
+        try:
+            abs_path = os.path.abspath(file_path)
+            if os.path.commonpath([os.path.abspath(APP_TEMP_DIR), abs_path]) == os.path.abspath(APP_TEMP_DIR):
+                if os.path.exists(abs_path):
+                    os.remove(abs_path)
+        except (OSError, ValueError):
+            pass
+
+
+def create_private_temp_file(data, suffix=".bin"):
+    _ensure_private_temp_dir()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, prefix="budgetapp_", dir=APP_TEMP_DIR) as tmp_file:
+        tmp_file.write(data)
+        tmp_path = tmp_file.name
+    if os.name != "nt":
+        try:
+            os.chmod(tmp_path, 0o600)
+        except OSError:
+            pass
+    _TEMP_FILES_TO_CLEAN.append(tmp_path)
+    return tmp_path
+
+
+cleanup_temp_files(include_stale=True)
+atexit.register(cleanup_temp_files)
 
 DEFAULT_LANGUAGE = "pl"
 
@@ -280,7 +338,6 @@ class AppMenuConfig(QObject):
         "tools_search": QKeySequence(f"{cmd}+F"),
         "options_settings": QKeySequence(f"{cmd}+," if is_mac else f"{cmd}+Alt+S"),
         "help_guide": QKeySequence("F1"),
-        "tools_forecast": QKeySequence(f"{cmd}+Alt+P"),
     }
 
     def __init__(self, window):
@@ -352,10 +409,6 @@ class AppMenuConfig(QObject):
         act_pdf.triggered.connect(self.window.open_report_dialog)
         tools_menu.addAction(act_pdf)
 
-        act_forecast = QAction(_("Prognozy i AI"), self.window)
-        act_forecast.setShortcut(self.SHORTCUTS["tools_forecast"])
-        act_forecast.triggered.connect(self.window.open_forecast_dialog)
-        tools_menu.addAction(act_forecast)
 
     def _build_options_menu(self, menu_bar):
         options_menu = menu_bar.addMenu(_("Opcje"))

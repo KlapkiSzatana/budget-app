@@ -163,7 +163,8 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Usunięcie zbędnego opisu
+            - Usunięcie Prognoz
+            - Dodanie wstępnej obsługi Android (aplikacja wkrótce)
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

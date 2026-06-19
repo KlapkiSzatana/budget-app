@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 from PySide6.QtCore import Qt, QSettings, QDate, QTimer, QTranslator, QLocale
 from PySide6.QtGui import QColor, QPalette, QIcon, QKeyEvent, QAction
 
-from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID, AppMenuConfig
+from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID, AppMenuConfig, create_private_temp_file, cleanup_temp_files
 from database import DatabaseManager
 from dialogs import AppGuide
 from config import save_table_widths, load_table_widths
@@ -45,6 +45,7 @@ class BudgetApp(QMainWindow):
         self.setWindowTitle(f"{APPNAME}")
         self.resize(1200, 950)
         self.db = DatabaseManager()
+        self.sync_server = None
         self.settings = QSettings("BudgetApp", "Config")
         self.pdf_gen = None
         self.active_filter_cat = None
@@ -78,6 +79,7 @@ class BudgetApp(QMainWindow):
         self.setup_table()
         self.setup_footer()
         self.apply_module_visibility()
+        self.apply_sync_settings(show_errors=False)
 
         self.menu_manager = AppMenuConfig(self)
         self.menu_manager.setup_all_menus()
@@ -95,9 +97,41 @@ class BudgetApp(QMainWindow):
         from settings_dialog import SettingsDialog
         dlg = SettingsDialog(self, self.db)
         if dlg.exec():
+            if getattr(dlg, "restart_required", False):
+                QTimer.singleShot(0, self.restart_application)
+                return
             self.apply_language_ui()
             self.apply_module_visibility()
+            self.apply_sync_settings()
             self.load_transactions()
+
+    def restart_application(self):
+        try:
+            widths = {
+                1: self.table.columnWidth(1),
+                2: self.table.columnWidth(2),
+                3: self.table.columnWidth(3),
+                4: self.table.columnWidth(4)
+            }
+            save_table_widths(widths)
+        except Exception:
+            pass
+
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("windowState", self.saveState())
+        self.settings.setValue("last_year", self.current_year)
+        self.settings.setValue("last_month", self.current_month)
+        self.settings.sync()
+        cleanup_temp_files()
+
+        try:
+            self.db.conn.close()
+        except Exception:
+            pass
+
+        QApplication.processEvents()
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
 
     def apply_language_ui(self):
         import config as app_config
@@ -114,7 +148,7 @@ class BudgetApp(QMainWindow):
         show_deb_mod = self.db.get_config_bool("show_debtors", True)
         show_shop = self.db.get_config_bool("show_shopping", True)
         show_week = self.db.get_config_bool("show_weekly", True)
-        show_forecast = self.db.get_config_bool("show_forecast", True)
+
 
         if hasattr(self, 'btn_shop'):
             self.btn_shop.setVisible(show_shop)
@@ -123,8 +157,6 @@ class BudgetApp(QMainWindow):
             if not show_week and hasattr(self, 'weekly_widget') and self.weekly_widget.isVisible():
                 self.weekly_widget.setVisible(False)
                 self.monthly_widget.setVisible(True)
-        if hasattr(self, 'btn_forecast'):
-            self.btn_forecast.setVisible(show_forecast)
 
         self.btn_liabilities.setVisible(show_lia_mod)
         self.btn_debtors.setVisible(show_deb_mod)
@@ -222,6 +254,7 @@ class BudgetApp(QMainWindow):
         from dialogs import BackupDialog
         from shopping import ShoppingListDialog
         l = QHBoxLayout(); l.setContentsMargins(0, 0, 0, 10)
+        l.setSpacing(8)
 
         common_height = """
             min-height: 22px;
@@ -275,6 +308,10 @@ class BudgetApp(QMainWindow):
         self.btn_settings.setStyleSheet(settings_style)
         self.btn_settings.clicked.connect(self.open_settings_dialog)
 
+        self.btn_sync_lan = QPushButton(_("SYNC"))
+        self.btn_sync_lan.setStyleSheet(settings_style)
+        self.btn_sync_lan.clicked.connect(self.confirm_sync)
+
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText(_("Szukaj: '19zł', 'czynsz', '21.06'..."))
         self.search_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -309,10 +346,6 @@ class BudgetApp(QMainWindow):
         self.btn_filter.setStyleSheet(filter_style)
         self.btn_filter.clicked.connect(self.open_filter_dialog)
 
-        self.btn_forecast = QPushButton(_("📈 Prognozy"))
-        self.btn_forecast.setStyleSheet(weekly_style)
-        self.btn_forecast.clicked.connect(self.open_forecast_dialog)
-
         self.btn_pdf = QPushButton(_("📄 Zapisz do PDF"))
         self.btn_pdf.setStyleSheet(pdf_style)
         self.btn_pdf.clicked.connect(self.open_report_dialog)
@@ -326,17 +359,84 @@ class BudgetApp(QMainWindow):
         l.addWidget(self.btn_sel_year)
         l.addWidget(self.btn_back)
         l.addWidget(self.btn_settings)
+        l.addWidget(self.btn_sync_lan)
         l.addSpacing(20)
         l.addWidget(self.search_bar, 1)
         l.addSpacing(20)
         l.addWidget(self.btn_weekly)
         l.addWidget(self.btn_shop)
         l.addWidget(self.btn_filter)
-        l.addWidget(self.btn_forecast)
         l.addWidget(self.btn_pdf)
         l.addWidget(self.btn_close_month)
 
         self.main_layout.addLayout(l)
+
+    def apply_sync_settings(self, show_errors=True):
+        enabled = self.db.get_config_bool("sync_server_enabled", True)
+        if enabled:
+            try:
+                self.ensure_sync_server()
+            except Exception as error:
+                if show_errors:
+                    QMessageBox.warning(self, _("Synchronizacja"), _("Nie udało się uruchomić serwera:\n{}").format(error))
+        elif self.sync_server and self.sync_server.is_running():
+            self.sync_server.stop()
+        if hasattr(self, "btn_sync_lan"):
+            self.btn_sync_lan.setText(_("SYNC"))
+
+    def ensure_sync_server(self):
+        if self.sync_server and self.sync_server.is_running():
+            return self.sync_server
+        from budget_sync import BudgetSyncServer
+        self.sync_server = BudgetSyncServer(self.db)
+        self.sync_server.start()
+        return self.sync_server
+
+    def confirm_sync(self):
+        answer = QMessageBox.question(
+            self,
+            _("Synchronizacja"),
+            _("czy chcesz synchronizować?"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes:
+            self.perform_sync()
+
+    def perform_sync(self):
+        self.apply_sync_settings(show_errors=False)
+        peer_url = str(self.db.get_config("sync_peer_url") or "").strip()
+        if not peer_url:
+            QMessageBox.warning(
+                self,
+                _("Synchronizacja"),
+                _("Brak adresu drugiego urządzenia. Ustaw go w Ustawieniach -> Synchronizacja LAN.")
+            )
+            return
+
+        try:
+            from budget_sync import sync_with_peer
+            self.btn_sync_lan.setEnabled(False)
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            result = sync_with_peer(self.db, peer_url)
+            local = result.get("imported_local", {})
+            remote = result.get("imported_remote", {})
+            self.load_transactions()
+            QMessageBox.information(
+                self,
+                _("Synchronizacja"),
+                _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}").format(
+                    inserted=local.get("inserted", 0),
+                    updated=local.get("updated", 0),
+                    r_inserted=remote.get("inserted", 0),
+                    r_updated=remote.get("updated", 0),
+                )
+            )
+        except Exception as error:
+            QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.btn_sync_lan.setEnabled(True)
 
     def schedule_update(self): self.update_timer.start(50)
 
@@ -935,6 +1035,7 @@ class BudgetApp(QMainWindow):
 
     def setup_buttons(self):
         l = QHBoxLayout()
+        l.setSpacing(10)
         base_style = """
             QPushButton {
                 font-size: 16px; font-weight: bold; padding: 12px; border-radius: 8px; border: 2px solid; background-color: transparent;
@@ -1076,7 +1177,6 @@ class BudgetApp(QMainWindow):
 
     def preview_attachment(self, tid):
         from config import _
-        import tempfile
         import os
         import subprocess
         from PySide6.QtWidgets import QMessageBox
@@ -1093,10 +1193,7 @@ class BudgetApp(QMainWindow):
         elif data.startswith(b"\xff\xd8"):
             suffix = ".jpg"
         try:
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-            tmp_file.write(data)
-            tmp_path = tmp_file.name
-            tmp_file.close()
+            tmp_path = create_private_temp_file(data, suffix=suffix)
 
             if os.name == 'nt':
                 os.startfile(tmp_path)
@@ -1512,13 +1609,9 @@ class BudgetApp(QMainWindow):
         v_layout.addLayout(h_btns)
         dlg.exec()
 
-    def open_forecast_dialog(self):
-        from dialogs import ForecastDialog
-        dlg = ForecastDialog(self, self.db)
-        dlg.exec()
 
     def open_attachment_by_filename(self, filename):
-        import os, tempfile, subprocess
+        import os, subprocess
 
         file_path = os.path.join(self.db.attachments_dir, filename)
 
@@ -1535,14 +1628,16 @@ class BudgetApp(QMainWindow):
             if blob_data.startswith(b'\xff\xd8'): ext = ".jpg"
             elif blob_data.startswith(b'\x89PNG'): ext = ".png"
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                tmp.write(blob_data)
-                p = tmp.name
+            p = create_private_temp_file(blob_data, suffix=ext)
 
             if os.name == 'nt':
                 os.startfile(p)
             else:
-                subprocess.call(['xdg-open', p])
+                env = dict(os.environ)
+                env.pop('LD_LIBRARY_PATH', None)
+                env.pop('QT_PLUGIN_PATH', None)
+                env.pop('QT_QPA_PLATFORM_PLUGIN_PATH', None)
+                subprocess.Popen(['xdg-open', p], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
             print(f"Błąd otwierania załącznika: {e}")
 
@@ -2570,7 +2665,6 @@ class BudgetApp(QMainWindow):
 
             acc_bal = initial_bal + acc_inc - acc_exp
 
-            print(f"DEBUG SYNC: {acc_name} -> {acc_bal}")
             acc_data.append((acc_id, acc_name, acc_bal))
 
         success = self.pdf_gen.generate(
@@ -3029,6 +3123,9 @@ class BudgetApp(QMainWindow):
         if hasattr(self, "search_timer"):
             self.search_timer.stop()
 
+        if self.sync_server and self.sync_server.is_running():
+            self.sync_server.stop()
+
         try:
             widths = {
                 1: self.table.columnWidth(1),
@@ -3053,6 +3150,8 @@ class BudgetApp(QMainWindow):
             time.sleep(0.5)
             self.db.perform_backup()
             pd.close()
+
+        cleanup_temp_files()
 
         e.accept()
 

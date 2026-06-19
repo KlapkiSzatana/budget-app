@@ -1,7 +1,7 @@
 [Setup]
 AppName=Budżet Domowy
-AppVersion=2.1.1
-AppVerName=BudgetApp 2.1.1
+AppVersion=3.0
+AppVerName=BudgetApp 3.0
 AppPublisher=KlapkiSzatana
 AppPublisherURL=https://github.com/KlapkiSzatana/budget-app
 AppSupportURL=https://github.com/KlapkiSzatana/budget-app/issues
@@ -10,14 +10,14 @@ AppCopyright=© 2026 KlapkiSzatana
 DefaultDirName={userappdata}\KlapkiSzatana\BudgetApp
 DefaultGroupName=Budżet Domowy
 UninstallDisplayIcon={app}\budget-app.exe
-UninstallDisplayName=BudgetApp 2.1.1 - Zarządzanie Budżetem Domowym
+UninstallDisplayName=BudgetApp 3.0 - Zarządzanie Budżetem Domowym
 Compression=lzma
 SolidCompression=yes
 OutputDir=user_setup
 OutputBaseFilename=BudgetApp_Setup
 LicenseFile=LICENSE
 PrivilegesRequired=lowest
-VersionInfoVersion=2.1.1.0
+VersionInfoVersion=3.0.0.0
 VersionInfoCompany=KlapkiSzatana
 VersionInfoDescription=Aplikacja do zarządzania budżetem domowym
 VersionInfoCopyright=Copyright © 2026 KlapkiSzatana
