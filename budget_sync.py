@@ -1,9 +1,12 @@
 import json
 import socket
 import threading
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, urlunparse
+
+MAX_SYNC_BODY_BYTES = 32 * 1024 * 1024
 
 
 class BudgetSyncServer:
@@ -27,6 +30,10 @@ class BudgetSyncServer:
 
             def _send_json(self, code, payload):
                 body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                if len(body) > MAX_SYNC_BODY_BYTES:
+                    code = 500
+                    payload = {"ok": False, "error": "Odpowiedź synchronizacji jest za duża"}
+                    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 self.send_response(code)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -54,6 +61,9 @@ class BudgetSyncServer:
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
+                    if length > MAX_SYNC_BODY_BYTES:
+                        self._send_json(413, {"ok": False, "error": "Dane synchronizacji są za duże"})
+                        return
                     raw = self.rfile.read(length).decode("utf-8")
                     incoming = json.loads(raw) if raw else {}
                     with outer.lock:
@@ -123,14 +133,15 @@ def normalize_sync_url(raw_url):
     return urlunparse((parsed.scheme, parsed.netloc, path, "", "", "")).rstrip("/")
 
 
-def sync_with_peer(db, peer_url, timeout=20):
-    """Wysyła lokalny payload do drugiego urządzenia i scala odpowiedź."""
+def post_sync_payload(peer_url, payload, timeout=20):
+    """Wysyła gotowy payload do drugiego urządzenia i zwraca odpowiedź JSON."""
     base_url = normalize_sync_url(peer_url)
     if not base_url:
         raise ValueError("Brak adresu drugiego urządzenia")
 
-    payload = db.export_sync_payload()
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if len(body) > MAX_SYNC_BODY_BYTES:
+        raise ValueError("Dane synchronizacji są za duże")
     request = urllib.request.Request(
         base_url + "/sync",
         data=body,
@@ -141,10 +152,42 @@ def sync_with_peer(db, peer_url, timeout=20):
         },
     )
 
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        raw = response.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            length = response.headers.get("Content-Length")
+            if length and int(length) > MAX_SYNC_BODY_BYTES:
+                raise RuntimeError("Odpowiedź synchronizacji jest za duża")
+            data = response.read(MAX_SYNC_BODY_BYTES + 1)
+            if len(data) > MAX_SYNC_BODY_BYTES:
+                raise RuntimeError("Odpowiedź synchronizacji jest za duża")
+            raw = data.decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        data = exc.read(MAX_SYNC_BODY_BYTES + 1)
+        if len(data) > MAX_SYNC_BODY_BYTES:
+            raise RuntimeError("Odpowiedź błędu synchronizacji jest za duża") from exc
+        raw = data.decode("utf-8", errors="replace")
+        message = raw
+        try:
+            decoded = json.loads(raw) if raw else {}
+            if isinstance(decoded, dict):
+                message = decoded.get("error") or decoded.get("message") or raw
+        except Exception:
+            pass
+        raise RuntimeError(message or f"HTTP {exc.code}") from exc
 
     incoming = json.loads(raw) if raw else {}
+    if not isinstance(incoming, dict):
+        raise RuntimeError("Nieprawidłowa odpowiedź urządzenia")
+    if isinstance(incoming, dict) and incoming.get("ok") is False:
+        raise RuntimeError(str(incoming.get("error") or "Urządzenie zwróciło błąd synchronizacji"))
+    return incoming
+
+
+def sync_with_peer(db, peer_url, timeout=20):
+    """Wysyła lokalny payload do drugiego urządzenia i scala odpowiedź."""
+    base_url = normalize_sync_url(peer_url)
+    payload = db.export_sync_payload()
+    incoming = post_sync_payload(base_url, payload, timeout=timeout)
     imported_local = db.import_sync_payload(incoming)
     return {
         "imported_local": imported_local,

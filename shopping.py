@@ -334,7 +334,8 @@ class ShoppingListDialog(QDialog):
     def _force_status_update(self, status):
         if self.list_id is not None:
             try:
-                self.db.conn.execute("UPDATE shopping_lists SET status=? WHERE id=?", (status, self.list_id))
+                self.db.conn.execute("UPDATE shopping_lists SET status=?, updated_at=? WHERE id=?",
+                                     (status, self.db.sync_timestamp(), self.list_id))
                 self.db.conn.commit()
             except: pass
 

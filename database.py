@@ -2,6 +2,7 @@ import sqlite3
 import os
 import json
 import uuid
+import base64
 from datetime import datetime, timedelta
 import config
 from config import APP_DIR, _
@@ -107,6 +108,13 @@ class DatabaseManager:
             ("transactions", "sync_id", "TEXT"),
             ("transactions", "updated_at", "TEXT"),
             ("transactions", "sync_order", "TEXT"),
+            ("pending_bills", "sync_id", "TEXT"),
+            ("pending_bills", "updated_at", "TEXT"),
+            ("shopping_lists", "sync_id", "TEXT"),
+            ("shopping_lists", "updated_at", "TEXT"),
+            ("shopping_items", "is_checked", "INTEGER DEFAULT 0"),
+            ("shopping_items", "sync_id", "TEXT"),
+            ("shopping_items", "updated_at", "TEXT"),
             # --- DODAJ TE DWIE LINIE PONIŻEJ ---
             ("liabilities", "attachment", "TEXT"),
             ("debtors", "attachment", "TEXT")
@@ -143,9 +151,21 @@ class DatabaseManager:
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS pending_bills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                due_date TEXT, amount REAL, category TEXT, description TEXT, is_paid INTEGER DEFAULT 0
+                due_date TEXT, amount REAL, category TEXT, description TEXT,
+                is_paid INTEGER DEFAULT 0, is_recurring INTEGER DEFAULT 0,
+                ref_id INTEGER, sync_id TEXT, updated_at TEXT
             )
         """)
+        for col, col_def in [
+            ("is_recurring", "INTEGER DEFAULT 0"),
+            ("ref_id", "INTEGER"),
+            ("sync_id", "TEXT"),
+            ("updated_at", "TEXT"),
+        ]:
+            try:
+                self.conn.execute(f"ALTER TABLE pending_bills ADD COLUMN {col} {col_def}")
+            except:
+                pass
 
         # --- TABELA KONT ---
         # 1. Tworzymy tabelę w podstawowej formie (jeśli nie istnieje)
@@ -193,6 +213,7 @@ class DatabaseManager:
         self.conn.execute("INSERT OR IGNORE INTO modules VALUES ('weekly_limit', 1)")
 
         self.ensure_transaction_sync_metadata()
+        self.ensure_aux_sync_metadata()
         self.conn.commit()
 
     def initialize_config(self):
@@ -270,6 +291,26 @@ class DatabaseManager:
                 )
         except Exception as e:
             print(f"Info: nie udało się uzupełnić metadanych sync: {e}")
+
+    def ensure_aux_sync_metadata(self):
+        """Nadaje metadane synchronizacji rachunkom i listom zakupów."""
+        for table in ("pending_bills", "shopping_lists", "shopping_items"):
+            try:
+                rows = self.conn.execute(
+                    f"SELECT id FROM {table} WHERE sync_id IS NULL OR TRIM(sync_id)=''"
+                ).fetchall()
+                now = self.sync_timestamp()
+                for (row_id,) in rows:
+                    self.conn.execute(
+                        f"UPDATE {table} SET sync_id=?, updated_at=? WHERE id=?",
+                        (str(uuid.uuid4()), now, row_id)
+                    )
+                self.conn.execute(
+                    f"UPDATE {table} SET updated_at=? WHERE updated_at IS NULL OR TRIM(updated_at)=''",
+                    (now,)
+                )
+            except Exception as e:
+                print(f"Info: nie udało się uzupełnić sync dla {table}: {e}")
 
     def get_weekly_config(self):
         cfg = self.get_config("weekly_limit_config")
@@ -553,6 +594,7 @@ class DatabaseManager:
     def export_sync_payload(self):
         """Zwraca dane potrzebne do synchronizacji wpisów z Androidem."""
         self.ensure_transaction_sync_metadata()
+        self.ensure_aux_sync_metadata()
         self.conn.commit()
 
         accounts = [
@@ -588,12 +630,75 @@ class DatabaseManager:
                 "account_name": row[10] or "Gotówka",
                 "account_color": row[11] or "#7f8c8d",
             })
+
+        bills = []
+        for row in self.conn.execute("""
+            SELECT id, due_date, amount, category, description, IFNULL(is_paid,0),
+                   IFNULL(is_recurring,0), ref_id, IFNULL(sync_id,''), IFNULL(updated_at,'')
+            FROM pending_bills
+            ORDER BY IFNULL(updated_at, ''), id
+        """).fetchall():
+            ref_name = ""
+            if row[7]:
+                found = self.conn.execute("SELECT name FROM liabilities WHERE id=?", (row[7],)).fetchone()
+                ref_name = found[0] if found else ""
+            bills.append({
+                "sync_id": row[8],
+                "updated_at": row[9],
+                "due_date": row[1],
+                "amount": row[2],
+                "category": row[3],
+                "description": row[4],
+                "is_paid": row[5],
+                "is_recurring": row[6],
+                "ref_name": ref_name,
+            })
+
+        shopping_lists = []
+        list_sync_by_id = {}
+        for row in self.conn.execute("""
+            SELECT id, name, created_at, status, IFNULL(sync_id,''), IFNULL(updated_at,'')
+            FROM shopping_lists
+            ORDER BY IFNULL(created_at, ''), id
+        """).fetchall():
+            list_sync_by_id[row[0]] = row[4]
+            shopping_lists.append({
+                "sync_id": row[4],
+                "updated_at": row[5],
+                "name": row[1],
+                "created_at": row[2],
+                "status": row[3],
+            })
+
+        shopping_items = []
+        for row in self.conn.execute("""
+            SELECT id, list_id, product_name, quantity, IFNULL(store,''), IFNULL(is_checked,0),
+                   IFNULL(sync_id,''), IFNULL(updated_at,'')
+            FROM shopping_items
+            ORDER BY list_id, IFNULL(store,''), product_name, id
+        """).fetchall():
+            parent_sync = list_sync_by_id.get(row[1])
+            if not parent_sync:
+                continue
+            shopping_items.append({
+                "sync_id": row[6],
+                "updated_at": row[7],
+                "list_sync_id": parent_sync,
+                "product_name": row[2],
+                "quantity": row[3],
+                "store": row[4],
+                "is_checked": row[5],
+            })
+
         return {
             "device": "BudgetApp PC",
             "accounts": accounts,
             "categories": categories,
             "people": people,
             "transactions": transactions,
+            "pending_bills": bills,
+            "shopping_lists": shopping_lists,
+            "shopping_items": shopping_items,
         }
 
     def import_sync_payload(self, payload):
@@ -629,6 +734,36 @@ class DatabaseManager:
                 elif change == "updated":
                     updated += 1
 
+            for bill in payload.get("pending_bills", []):
+                if not isinstance(bill, dict):
+                    continue
+                change = self._import_sync_bill(bill)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
+
+            list_id_by_sync = {}
+            for item in payload.get("shopping_lists", []):
+                if not isinstance(item, dict):
+                    continue
+                change, local_id = self._import_sync_shopping_list(item)
+                if local_id:
+                    list_id_by_sync[str(item.get("sync_id") or "")] = local_id
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
+
+            for item in payload.get("shopping_items", []):
+                if not isinstance(item, dict):
+                    continue
+                change = self._import_sync_shopping_item(item, list_id_by_sync)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
+
             self.conn.commit()
         except Exception:
             self.conn.rollback()
@@ -659,6 +794,214 @@ class DatabaseManager:
             row = self.conn.execute("SELECT id FROM goals WHERE name=? LIMIT 1", (subcategory,)).fetchone()
             return row[0] if row else None
         return None
+
+    def _resolve_bill_ref(self, category, description, ref_name=""):
+        if category != "Spłata Długu":
+            return None
+        for name in (ref_name, description):
+            safe = str(name or "").strip()
+            if not safe:
+                continue
+            row = self.conn.execute("SELECT id FROM liabilities WHERE name=? LIMIT 1", (safe,)).fetchone()
+            if row:
+                return row[0]
+        return None
+
+    def _write_sync_attachment(self, tx, existing_filename=None):
+        has_payload = bool(str(tx.get("attachment_data") or "").strip())
+        if not has_payload:
+            if tx.get("attachment_present") is False and existing_filename:
+                try:
+                    os.remove(os.path.join(self.attachments_dir, os.path.basename(existing_filename)))
+                except Exception:
+                    pass
+                return None
+            return existing_filename
+
+        try:
+            data = base64.b64decode(str(tx.get("attachment_data") or ""), validate=True)
+        except Exception:
+            return existing_filename
+        if not data:
+            return existing_filename
+
+        raw_name = os.path.basename(str(tx.get("attachment_name") or "zalacznik.dat")).replace("\\", "_").replace("/", "_")
+        if not raw_name:
+            raw_name = "zalacznik.dat"
+        filename = f"{uuid.uuid4().hex}-{raw_name}"
+        try:
+            os.makedirs(self.attachments_dir, exist_ok=True)
+            with open(os.path.join(self.attachments_dir, filename), "wb") as f:
+                f.write(data)
+            if existing_filename and existing_filename != filename:
+                try:
+                    os.remove(os.path.join(self.attachments_dir, os.path.basename(existing_filename)))
+                except Exception:
+                    pass
+            return filename
+        except Exception:
+            return existing_filename
+
+    def _import_sync_bill(self, bill):
+        sync_id = str(bill.get("sync_id") or "").strip()
+        if not sync_id:
+            return None
+        remote_updated = str(bill.get("updated_at") or self.sync_timestamp())
+        existing = self.conn.execute(
+            "SELECT id, IFNULL(updated_at,'') FROM pending_bills WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if existing and existing[1] >= remote_updated:
+            return None
+
+        category = str(bill.get("category") or "Inne")
+        description = str(bill.get("description") or "")
+        values = (
+            str(bill.get("due_date") or datetime.now().strftime("%Y-%m-%d")),
+            float(bill.get("amount") or 0.0),
+            category,
+            description,
+            int(bill.get("is_paid") or 0),
+            int(bill.get("is_recurring") or 0),
+            self._resolve_bill_ref(category, description, bill.get("ref_name") or ""),
+            sync_id,
+            remote_updated,
+        )
+
+        if existing:
+            self.conn.execute("""
+                UPDATE pending_bills
+                SET due_date=?, amount=?, category=?, description=?, is_paid=?,
+                    is_recurring=?, ref_id=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (existing[0],))
+            return "updated"
+
+        duplicate = self.conn.execute("""
+            SELECT id
+            FROM pending_bills
+            WHERE IFNULL(due_date,'')=?
+              AND ABS(IFNULL(amount,0.0) - ?) < 0.000001
+              AND IFNULL(category,'')=?
+              AND IFNULL(description,'')=?
+              AND IFNULL(is_recurring,0)=?
+              AND (sync_id IS NULL OR TRIM(sync_id)='' OR sync_id != ?)
+            ORDER BY id LIMIT 1
+        """, (values[0], values[1], values[2], values[3], values[5], sync_id)).fetchone()
+        if duplicate:
+            self.conn.execute("""
+                UPDATE pending_bills
+                SET due_date=?, amount=?, category=?, description=?, is_paid=?,
+                    is_recurring=?, ref_id=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (duplicate[0],))
+            return "updated"
+
+        self.conn.execute("""
+            INSERT INTO pending_bills
+                (due_date, amount, category, description, is_paid, is_recurring, ref_id, sync_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, values)
+        return "inserted"
+
+    def _import_sync_shopping_list(self, item):
+        sync_id = str(item.get("sync_id") or "").strip()
+        if not sync_id:
+            return None, None
+        remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        existing = self.conn.execute(
+            "SELECT id, IFNULL(updated_at,'') FROM shopping_lists WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if existing and existing[1] >= remote_updated:
+            return None, existing[0]
+
+        name = str(item.get("name") or "Lista zakupów")
+        created = str(item.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        status = str(item.get("status") or "open")
+        values = (name, created, status, sync_id, remote_updated)
+
+        if existing:
+            self.conn.execute("""
+                UPDATE shopping_lists SET name=?, created_at=?, status=?, sync_id=?, updated_at=? WHERE id=?
+            """, values + (existing[0],))
+            return "updated", existing[0]
+
+        duplicate = self.conn.execute("""
+            SELECT id FROM shopping_lists
+            WHERE IFNULL(name,'')=? AND IFNULL(created_at,'')=?
+              AND (sync_id IS NULL OR TRIM(sync_id)='' OR sync_id != ?)
+            ORDER BY id LIMIT 1
+        """, (name, created, sync_id)).fetchone()
+        if duplicate:
+            self.conn.execute("""
+                UPDATE shopping_lists SET name=?, created_at=?, status=?, sync_id=?, updated_at=? WHERE id=?
+            """, values + (duplicate[0],))
+            return "updated", duplicate[0]
+
+        cur = self.conn.execute("""
+            INSERT INTO shopping_lists (name, created_at, status, sync_id, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, values)
+        return "inserted", cur.lastrowid
+
+    def _local_shopping_list_id(self, list_sync_id, cache):
+        if list_sync_id in cache:
+            return cache[list_sync_id]
+        row = self.conn.execute("SELECT id FROM shopping_lists WHERE sync_id=?", (list_sync_id,)).fetchone()
+        if row:
+            cache[list_sync_id] = row[0]
+            return row[0]
+        return None
+
+    def _import_sync_shopping_item(self, item, list_id_by_sync):
+        sync_id = str(item.get("sync_id") or "").strip()
+        list_sync_id = str(item.get("list_sync_id") or "").strip()
+        if not sync_id or not list_sync_id:
+            return None
+        list_id = self._local_shopping_list_id(list_sync_id, list_id_by_sync)
+        if not list_id:
+            return None
+        remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        existing = self.conn.execute(
+            "SELECT id, IFNULL(updated_at,'') FROM shopping_items WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if existing and existing[1] >= remote_updated:
+            return None
+
+        product = str(item.get("product_name") or "")
+        quantity = str(item.get("quantity") or "")
+        store = str(item.get("store") or "")
+        values = (list_id, product, quantity, store, int(item.get("is_checked") or 0), sync_id, remote_updated)
+
+        if existing:
+            self.conn.execute("""
+                UPDATE shopping_items
+                SET list_id=?, product_name=?, quantity=?, store=?, is_checked=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (existing[0],))
+            return "updated"
+
+        duplicate = self.conn.execute("""
+            SELECT id FROM shopping_items
+            WHERE list_id=? AND IFNULL(product_name,'')=? AND IFNULL(quantity,'')=? AND IFNULL(store,'')=?
+              AND (sync_id IS NULL OR TRIM(sync_id)='' OR sync_id != ?)
+            ORDER BY id LIMIT 1
+        """, (list_id, product, quantity, store, sync_id)).fetchone()
+        if duplicate:
+            self.conn.execute("""
+                UPDATE shopping_items
+                SET list_id=?, product_name=?, quantity=?, store=?, is_checked=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (duplicate[0],))
+            return "updated"
+
+        self.conn.execute("""
+            INSERT INTO shopping_items (list_id, product_name, quantity, store, is_checked, sync_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, values)
+        return "inserted"
 
     def _is_legacy_sync_order(self, value):
         raw = str(value or "").strip()
@@ -711,10 +1054,15 @@ class DatabaseManager:
         remote_has_order = bool(str(tx.get("sync_order") or "").strip())
         remote_order = str(tx.get("sync_order") or remote_updated or self.sync_order_value())
         existing = self.conn.execute(
-            "SELECT id, IFNULL(updated_at, '') FROM transactions WHERE sync_id=?",
+            "SELECT id, IFNULL(updated_at, ''), IFNULL(attachment, '') FROM transactions WHERE sync_id=?",
             (sync_id,)
         ).fetchone()
         if existing and existing[1] >= remote_updated:
+            if not existing[2] and str(tx.get("attachment_data") or "").strip():
+                filename = self._write_sync_attachment(tx, existing[2])
+                if filename:
+                    self.conn.execute("UPDATE transactions SET attachment=? WHERE id=?", (filename, existing[0]))
+                    return "updated"
             return None
 
         t_type = str(tx.get("type") or "expense")
@@ -730,6 +1078,9 @@ class DatabaseManager:
         if t_type == "expense":
             self.conn.execute("INSERT OR IGNORE INTO categories VALUES (?)", (category,))
 
+        existing_attachment = existing[2] if existing else None
+        attachment = self._write_sync_attachment(tx, existing_attachment) if existing else None
+
         values = (
             str(tx.get("date") or datetime.now().strftime("%Y-%m-%d")),
             t_type,
@@ -738,6 +1089,7 @@ class DatabaseManager:
             float(tx.get("amount") or 0.0),
             int(tx.get("exclude_from_weekly") or 0),
             str(tx.get("details") or ""),
+            attachment,
             self._resolve_sync_ref(t_type, subcategory),
             account_id,
             sync_id,
@@ -750,30 +1102,34 @@ class DatabaseManager:
                 UPDATE transactions
                 SET date=?, type=?, category=?, subcategory=?, amount=?,
                     currency='PLN', exchange_rate=1.0, exclude_from_weekly=?,
-                    details=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
+                    details=?, attachment=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
                 WHERE id=?
             """, values + (existing[0],))
             return "updated"
 
         duplicate_id = self._find_legacy_duplicate_transaction(tx, account_id, sync_id, remote_order, remote_has_order)
         if duplicate_id is not None:
+            dup_attachment_row = self.conn.execute("SELECT IFNULL(attachment,'') FROM transactions WHERE id=?", (duplicate_id,)).fetchone()
+            dup_attachment = dup_attachment_row[0] if dup_attachment_row else None
+            dup_values = values[:7] + (self._write_sync_attachment(tx, dup_attachment),) + values[8:]
             self.conn.execute("""
                 UPDATE transactions
                 SET date=?, type=?, category=?, subcategory=?, amount=?,
                     currency='PLN', exchange_rate=1.0, exclude_from_weekly=?,
-                    details=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
+                    details=?, attachment=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
                 WHERE id=?
-            """, values + (duplicate_id,))
+            """, dup_values + (duplicate_id,))
             return "updated"
 
+        insert_values = values[:7] + (self._write_sync_attachment(tx, None),) + values[8:]
         self.conn.execute("""
             INSERT INTO transactions (
                 date, type, category, subcategory, amount,
                 currency, exchange_rate, exclude_from_weekly,
                 details, attachment, ref_id, account_id, sync_id, updated_at, sync_order
             )
-            VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, NULL, ?, ?, ?, ?, ?)
-        """, values)
+            VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, insert_values)
         return "inserted"
 
     def get_year_transactions(self, year_str):
@@ -1104,7 +1460,10 @@ class DatabaseManager:
 
     def create_shopping_list(self, name):
         created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cur = self.conn.execute("INSERT INTO shopping_lists (name, created_at, status) VALUES (?, ?, 'open')", (name, created))
+        cur = self.conn.execute(
+            "INSERT INTO shopping_lists (name, created_at, status, sync_id, updated_at) VALUES (?, ?, 'open', ?, ?)",
+            (name, created, str(uuid.uuid4()), self.sync_timestamp())
+        )
         self.conn.commit()
         return cur.lastrowid
 
@@ -1112,7 +1471,10 @@ class DatabaseManager:
         return self.conn.execute("SELECT id, name, created_at, status FROM shopping_lists ORDER BY created_at DESC").fetchall()
 
     def add_shopping_item(self, list_id, product, quantity, store=""):
-        self.conn.execute("INSERT INTO shopping_items (list_id, product_name, quantity, store) VALUES (?, ?, ?, ?)", (list_id, product, quantity, store))
+        self.conn.execute(
+            "INSERT INTO shopping_items (list_id, product_name, quantity, store, is_checked, sync_id, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
+            (list_id, product, quantity, store, str(uuid.uuid4()), self.sync_timestamp())
+        )
         self.conn.commit()
 
     def get_shopping_items(self, list_id):
@@ -1127,11 +1489,17 @@ class DatabaseManager:
         self.conn.commit()
 
     def update_shopping_item(self, item_id, p, q):
-        self.conn.execute("UPDATE shopping_items SET product_name=?, quantity=? WHERE id=?", (p, q, item_id))
+        self.conn.execute(
+            "UPDATE shopping_items SET product_name=?, quantity=?, updated_at=? WHERE id=?",
+            (p, q, self.sync_timestamp(), item_id)
+        )
         self.conn.commit()
 
     def close_shopping_list(self, list_id):
-        self.conn.execute("UPDATE shopping_lists SET status='closed' WHERE id=?", (list_id,))
+        self.conn.execute(
+            "UPDATE shopping_lists SET status='closed', updated_at=? WHERE id=?",
+            (self.sync_timestamp(), list_id)
+        )
         self.conn.commit()
 
     def delete_shopping_list(self, list_id):
@@ -1198,13 +1566,13 @@ class DatabaseManager:
     def add_pending_bill(self, due_date, amount, category, description, is_recurring=0, ref_id=None):
         # Dodajemy obsługę ref_id w zapytaniu INSERT
         self.conn.execute("""
-            INSERT INTO pending_bills (due_date, amount, category, description, is_recurring, ref_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (due_date, amount, category, description, is_recurring, ref_id))
+            INSERT INTO pending_bills (due_date, amount, category, description, is_recurring, ref_id, sync_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (due_date, amount, category, description, is_recurring, ref_id, str(uuid.uuid4()), self.sync_timestamp()))
         self.conn.commit()
 
     def mark_bill_paid(self, bill_id):
-        self.conn.execute("UPDATE pending_bills SET is_paid = 1 WHERE id = ?", (bill_id,))
+        self.conn.execute("UPDATE pending_bills SET is_paid = 1, updated_at = ? WHERE id = ?", (self.sync_timestamp(), bill_id))
         self.conn.commit()
 
     def delete_pending_bill(self, bill_id):
@@ -1213,7 +1581,7 @@ class DatabaseManager:
 
     def toggle_bill_recurring(self, bill_id, current_status):
         new_status = 0 if current_status == 1 else 1
-        self.conn.execute("UPDATE pending_bills SET is_recurring = ? WHERE id = ?", (new_status, bill_id))
+        self.conn.execute("UPDATE pending_bills SET is_recurring = ?, updated_at = ? WHERE id = ?", (new_status, self.sync_timestamp(), bill_id))
         self.conn.commit()
 
     def get_available_years(self):

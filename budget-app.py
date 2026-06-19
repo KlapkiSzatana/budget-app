@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                                QGroupBox, QMessageBox, QAbstractItemView, QFrame,
                                QFileDialog, QProgressBar, QSizePolicy, QMenu,
                                QStackedWidget, QDialog)
-from PySide6.QtCore import Qt, QSettings, QDate, QTimer, QTranslator, QLocale
+from PySide6.QtCore import Qt, QSettings, QDate, QTimer, QTranslator, QLocale, QObject, QThread
 from PySide6.QtGui import QColor, QPalette, QIcon, QKeyEvent, QAction
 
 from config import WERSJA, PRODUCENT, setup_crash_handlers, _, MONTH_NAME, CASH_SAVINGS_NAME, APPNAME, APP_ID, AppMenuConfig, create_private_temp_file, cleanup_temp_files
@@ -38,6 +38,25 @@ class ClickableDebtLabel(QLabel):
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self.debt_id, self.debt_type)
 
+
+class SyncWorker(QObject):
+    finished = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, peer_url, payload):
+        super().__init__()
+        self.peer_url = peer_url
+        self.payload = payload
+
+    def run(self):
+        try:
+            from budget_sync import post_sync_payload
+            self.finished.emit(post_sync_payload(self.peer_url, self.payload))
+        except Exception as error:
+            self.failed.emit(str(error))
+        except BaseException as error:
+            self.failed.emit(str(error) or error.__class__.__name__)
+
 class BudgetApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -46,6 +65,9 @@ class BudgetApp(QMainWindow):
         self.resize(1200, 950)
         self.db = DatabaseManager()
         self.sync_server = None
+        self.sync_thread = None
+        self.sync_worker = None
+        self.sync_cursor_active = False
         self.settings = QSettings("BudgetApp", "Config")
         self.pdf_gen = None
         self.active_filter_cat = None
@@ -404,6 +426,10 @@ class BudgetApp(QMainWindow):
             self.perform_sync()
 
     def perform_sync(self):
+        if self.sync_thread and self.sync_thread.isRunning():
+            QMessageBox.information(self, _("Synchronizacja"), _("Synchronizacja już trwa."))
+            return
+
         self.apply_sync_settings(show_errors=False)
         peer_url = str(self.db.get_config("sync_peer_url") or "").strip()
         if not peer_url:
@@ -415,12 +441,36 @@ class BudgetApp(QMainWindow):
             return
 
         try:
-            from budget_sync import sync_with_peer
+            payload = self.db.export_sync_payload()
+        except Exception as error:
+            QMessageBox.warning(self, _("Synchronizacja"), _("Nie udało się przygotować danych:\n{}").format(error))
+            return
+
+        try:
             self.btn_sync_lan.setEnabled(False)
             QApplication.setOverrideCursor(Qt.WaitCursor)
-            result = sync_with_peer(self.db, peer_url)
-            local = result.get("imported_local", {})
-            remote = result.get("imported_remote", {})
+            self.sync_cursor_active = True
+            self.sync_thread = QThread(self)
+            self.sync_worker = SyncWorker(peer_url, payload)
+            self.sync_worker.moveToThread(self.sync_thread)
+            self.sync_thread.started.connect(self.sync_worker.run)
+            self.sync_worker.finished.connect(self.sync_worker.deleteLater)
+            self.sync_worker.failed.connect(self.sync_worker.deleteLater)
+            self.sync_worker.finished.connect(self._sync_finished)
+            self.sync_worker.failed.connect(self._sync_failed)
+            self.sync_worker.finished.connect(self.sync_thread.quit)
+            self.sync_worker.failed.connect(self.sync_thread.quit)
+            self.sync_thread.finished.connect(self.sync_thread.deleteLater)
+            self.sync_thread.finished.connect(self._sync_thread_finished)
+            self.sync_thread.start()
+        except Exception as error:
+            self._sync_restore_ui()
+            QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
+
+    def _sync_finished(self, incoming):
+        try:
+            local = self.db.import_sync_payload(incoming)
+            remote = incoming.get("imported", {}) if isinstance(incoming, dict) else {}
             self.load_transactions()
             QMessageBox.information(
                 self,
@@ -435,8 +485,22 @@ class BudgetApp(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
         finally:
+            self._sync_restore_ui()
+
+    def _sync_failed(self, error):
+        self._sync_restore_ui()
+        QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
+
+    def _sync_restore_ui(self):
+        if self.sync_cursor_active:
             QApplication.restoreOverrideCursor()
+            self.sync_cursor_active = False
+        if hasattr(self, "btn_sync_lan"):
             self.btn_sync_lan.setEnabled(True)
+
+    def _sync_thread_finished(self):
+        self.sync_thread = None
+        self.sync_worker = None
 
     def schedule_update(self): self.update_timer.start(50)
 
@@ -3122,6 +3186,11 @@ class BudgetApp(QMainWindow):
         self.update_timer.stop()
         if hasattr(self, "search_timer"):
             self.search_timer.stop()
+
+        if self.sync_thread and self.sync_thread.isRunning():
+            self.sync_thread.quit()
+            self.sync_thread.wait(1000)
+            self._sync_restore_ui()
 
         if self.sync_server and self.sync_server.is_running():
             self.sync_server.stop()

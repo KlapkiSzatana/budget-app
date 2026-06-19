@@ -33,9 +33,6 @@ Aby aplikacja działała poprawnie na Arch Linux, wymagane są następujące pak
 
 Pełna instrukcja budowy lokalnej wersji developerskiej, binarki Linux oraz paczek `.deb` i `.rpm` znajduje się w [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md).
 
-## Znane Błędy!
-Lista znanych błędów znajduje się w [ZNANE_BŁĘDY.md](ZNANE_BŁĘDY.md).
-
 ## Instancje bez podpisu cyfrowego
 
 Gotowe instalatory udostępniane w sekcji **Releases** nie są podpisane komercyjnym certyfikatem deweloperskim (ze względu na wysokie koszty takich certyfikatów). 
