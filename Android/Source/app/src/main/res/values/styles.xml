@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:statusBarColor">@color/budget_surface</item>
-        <item name="android:navigationBarColor">@color/budget_surface</item>
-        <item name="android:colorAccent">@color/budget_red</item>
-    </style>
-</resources>

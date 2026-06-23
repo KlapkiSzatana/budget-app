@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="budget_red">#c0392b</color>
-    <color name="budget_green">#27ae60</color>
-    <color name="budget_blue">#2980b9</color>
-    <color name="budget_text">#24313a</color>
-    <color name="budget_surface">#f6f7f9</color>
-</resources>
