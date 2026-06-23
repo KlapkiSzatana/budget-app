@@ -11,7 +11,7 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 - [Odinstalowanie](#odinstalowanie)
 - [Wersja gotowa dla Linux](#dostępna-również-gotowa-wersja-bin-dla-linux)
 - [Dostępne również na Windows i MacOS](#dostępne-również-na-windows-i-macos)
-- [Wersja Android .apk](#Wersja-.apk-na-Androida-jest-już-skompilowana-i-gotowa-do-zainstalowania)
+- [Wersja Android .apk](#Wersja-APK-na-Androida-jest-już-skompilowana-i-gotowa-do-zainstalowania)
 - [Licencja](#licencja)
 
 ## Funkcje
@@ -198,7 +198,7 @@ Wersje aplikacji na macOS oraz Windows są automatycznie kompilowane i publikowa
 
 Głównym środowiskiem rozwoju oraz docelową platformą projektu pozostaje jednak **Arch Linux** — to na nim skupia się podstawowy nurt rozwoju i testowania.
 
-## Wersja .apk na Androida jest już skompilowana i gotowa do zainstalowania
+## Wersja APK na Androida jest już skompilowana i gotowa do zainstalowania
 
 ### Pobierz najnowszą wersję:
 
