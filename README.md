@@ -11,6 +11,7 @@ Zaawansowany menedżer budżetu domowego z modułami do analizy wydatków, gener
 - [Odinstalowanie](#odinstalowanie)
 - [Wersja gotowa dla Linux](#dostępna-również-gotowa-wersja-bin-dla-linux)
 - [Dostępne również na Windows i MacOS](#dostępne-również-na-windows-i-macos)
+- [Wersja Android .apk](#Wersja-.apk-na-Androida-jest-już-skompilowana-i-gotowa-do-zainstalowania)
 - [Licencja](#licencja)
 
 ## Funkcje
@@ -197,10 +198,13 @@ Wersje aplikacji na macOS oraz Windows są automatycznie kompilowane i publikowa
 
 Głównym środowiskiem rozwoju oraz docelową platformą projektu pozostaje jednak **Arch Linux** — to na nim skupia się podstawowy nurt rozwoju i testowania.
 
+## Wersja .apk na Androida jest już skompilowana i gotowa do zainstalowania
+
 ### Pobierz najnowszą wersję:
 
 - [Pobierz dla Windows (Instalator)](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_Setup.exe)
 - [Pobierz dla macOS](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/BudgetApp_macos.dmg)
+- [Android](https://github.com/KlapkiSzatana/budget-app/releases/latest/download/budgetapp-mobile.apk)
 
 ## Licencja
 Projekt udostępniany na licencji GPL-3.0.

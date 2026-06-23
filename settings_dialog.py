@@ -51,11 +51,7 @@ class SettingsDialog(QDialog):
         self.cb_weekly.setChecked(self.db.get_config_bool("show_weekly", True))
 
 
-        self.cb_forecast = QCheckBox(_("Moduł: Prognozy i Analiza AI"))
-        self.cb_forecast.setChecked(self.db.get_config_bool("show_forecast", True))
-
-
-        for cb in [self.cb_liabilities, self.cb_debtors, self.cb_shopping, self.cb_weekly, self.cb_forecast]:
+        for cb in [self.cb_liabilities, self.cb_debtors, self.cb_shopping, self.cb_weekly]:
             mod_lay.addWidget(cb)
         layout.addWidget(modules_group)
 
@@ -289,7 +285,6 @@ class SettingsDialog(QDialog):
         self.db.set_config("show_shopping", self.cb_shopping.isChecked())
         self.db.set_config("show_weekly", self.cb_weekly.isChecked())
 
-        self.db.set_config("show_forecast", self.cb_forecast.isChecked())
         self.db.set_config("sync_server_enabled", self.cb_sync_server.isChecked())
         self.db.set_config("sync_peer_url", self.sync_peer_url.text().strip())
         if language_changed:

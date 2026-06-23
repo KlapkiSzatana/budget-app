@@ -117,7 +117,11 @@ class DatabaseManager:
             ("shopping_items", "updated_at", "TEXT"),
             # --- DODAJ TE DWIE LINIE PONIŻEJ ---
             ("liabilities", "attachment", "TEXT"),
-            ("debtors", "attachment", "TEXT")
+            ("liabilities", "sync_id", "TEXT"),
+            ("liabilities", "updated_at", "TEXT"),
+            ("debtors", "attachment", "TEXT"),
+            ("debtors", "sync_id", "TEXT"),
+            ("debtors", "updated_at", "TEXT"),
         ]
         for table, col, col_def in migrations:
             try:
@@ -284,17 +288,17 @@ class DatabaseManager:
                 "FROM transactions WHERE sync_order IS NULL OR TRIM(sync_order)=''"
             ).fetchall()
             for tid, date_value, updated_at in rows:
-                base = updated_at.strip() or f"{date_value or '1970-01-01'}T00:00:00.000000"
+                base = f"{date_value or '1970-01-01'}T00:00:00.000000"
                 self.conn.execute(
                     "UPDATE transactions SET sync_order=? WHERE id=?",
-                    (f"{base}|pc|{int(tid):012d}", tid)
+                    (f"{base}|pc-legacy|{int(tid):012d}", tid)
                 )
         except Exception as e:
             print(f"Info: nie udało się uzupełnić metadanych sync: {e}")
 
     def ensure_aux_sync_metadata(self):
-        """Nadaje metadane synchronizacji rachunkom i listom zakupów."""
-        for table in ("pending_bills", "shopping_lists", "shopping_items"):
+        """Nadaje metadane synchronizacji rachunkom, listom zakupów i długom."""
+        for table in ("pending_bills", "shopping_lists", "shopping_items", "liabilities", "debtors"):
             try:
                 rows = self.conn.execute(
                     f"SELECT id FROM {table} WHERE sync_id IS NULL OR TRIM(sync_id)=''"
@@ -585,7 +589,7 @@ class DatabaseManager:
                 CASE WHEN attachment IS NOT NULL AND attachment != '' THEN 1 ELSE 0 END,
                 account_id
                 FROM transactions
-                ORDER BY date DESC, id DESC
+                ORDER BY IFNULL(sync_order, IFNULL(updated_at, '')) DESC, id DESC
             """)
             return cursor.fetchall()
         except sqlite3.OperationalError:
@@ -604,12 +608,22 @@ class DatabaseManager:
         categories = self.get_categories()
         people = self.get_people()
 
+        liabilities = self._export_sync_debts("liabilities")
+        debtors = self._export_sync_debts("debtors")
+
         tx_rows = self.conn.execute("""
             SELECT t.date, t.type, t.category, t.subcategory, t.amount,
                    IFNULL(t.exclude_from_weekly, 0), IFNULL(t.details, ''),
                    IFNULL(t.sync_id, ''), IFNULL(t.updated_at, ''),
                    IFNULL(t.sync_order, ''),
-                   a.name, IFNULL(a.color, '#7f8c8d')
+                   a.name, IFNULL(a.color, '#7f8c8d'),
+                   IFNULL(CASE
+                       WHEN t.type='liability_repayment'
+                           THEN (SELECT sync_id FROM liabilities WHERE id=t.ref_id)
+                       WHEN t.type='debtor_repayment'
+                           THEN (SELECT sync_id FROM debtors WHERE id=t.ref_id)
+                       ELSE ''
+                   END, '')
             FROM transactions t
             LEFT JOIN accounts a ON a.id = t.account_id
             ORDER BY IFNULL(t.sync_order, IFNULL(t.updated_at, '')), t.id
@@ -629,6 +643,7 @@ class DatabaseManager:
                 "sync_order": row[9],
                 "account_name": row[10] or "Gotówka",
                 "account_color": row[11] or "#7f8c8d",
+                "ref_sync_id": row[12] or "",
             })
 
         bills = []
@@ -639,9 +654,14 @@ class DatabaseManager:
             ORDER BY IFNULL(updated_at, ''), id
         """).fetchall():
             ref_name = ""
+            ref_sync_id = ""
             if row[7]:
-                found = self.conn.execute("SELECT name FROM liabilities WHERE id=?", (row[7],)).fetchone()
+                found = self.conn.execute(
+                    "SELECT name, IFNULL(sync_id,'') FROM liabilities WHERE id=?",
+                    (row[7],)
+                ).fetchone()
                 ref_name = found[0] if found else ""
+                ref_sync_id = found[1] if found else ""
             bills.append({
                 "sync_id": row[8],
                 "updated_at": row[9],
@@ -652,6 +672,7 @@ class DatabaseManager:
                 "is_paid": row[5],
                 "is_recurring": row[6],
                 "ref_name": ref_name,
+                "ref_sync_id": ref_sync_id,
             })
 
         shopping_lists = []
@@ -695,6 +716,8 @@ class DatabaseManager:
             "accounts": accounts,
             "categories": categories,
             "people": people,
+            "liabilities": liabilities,
+            "debtors": debtors,
             "transactions": transactions,
             "pending_bills": bills,
             "shopping_lists": shopping_lists,
@@ -724,6 +747,24 @@ class DatabaseManager:
             for person in payload.get("people", []):
                 if person:
                     self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (str(person),))
+
+            for item in payload.get("liabilities", []):
+                if not isinstance(item, dict):
+                    continue
+                change = self._import_sync_debt("liabilities", item)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
+
+            for item in payload.get("debtors", []):
+                if not isinstance(item, dict):
+                    continue
+                change = self._import_sync_debt("debtors", item)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
 
             for tx in payload.get("transactions", []):
                 if not isinstance(tx, dict):
@@ -764,6 +805,7 @@ class DatabaseManager:
                 elif change == "updated":
                     updated += 1
 
+            self._normalize_debt_transaction_refs()
             self.conn.commit()
         except Exception:
             self.conn.rollback()
@@ -781,7 +823,98 @@ class DatabaseManager:
         )
         return cur.lastrowid
 
-    def _resolve_sync_ref(self, t_type, subcategory):
+    def _normalize_debt_transaction_refs(self):
+        self.conn.execute("""
+            UPDATE transactions
+            SET ref_id = (SELECT id FROM liabilities WHERE liabilities.name = transactions.subcategory LIMIT 1)
+            WHERE type = 'liability_repayment' AND ref_id IS NULL
+        """)
+        self.conn.execute("""
+            UPDATE transactions
+            SET ref_id = (SELECT id FROM debtors WHERE debtors.name = transactions.subcategory LIMIT 1)
+            WHERE type = 'debtor_repayment' AND ref_id IS NULL
+        """)
+
+    def _export_sync_debts(self, table):
+        rows = self.conn.execute(f"""
+            SELECT name, total_amount, deadline, IFNULL(sync_id,''), IFNULL(updated_at,'')
+            FROM {table}
+            ORDER BY IFNULL(updated_at,''), id
+        """).fetchall()
+        return [
+            {
+                "sync_id": row[3],
+                "updated_at": row[4],
+                "name": row[0],
+                "total_amount": row[1],
+                "deadline": row[2],
+            }
+            for row in rows
+        ]
+
+    def _import_sync_debt(self, table, item):
+        sync_id = str(item.get("sync_id") or "").strip()
+        if not sync_id:
+            return None
+        remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        existing = self.conn.execute(
+            f"SELECT id, IFNULL(updated_at,'') FROM {table} WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if existing and existing[1] >= remote_updated:
+            return None
+
+        name = str(item.get("name") or "").strip()
+        if not name:
+            return None
+        total = float(item.get("total_amount") or 0.0)
+        deadline = str(item.get("deadline") or "")
+        values = (name, total, deadline, sync_id, remote_updated)
+
+        if existing:
+            self.conn.execute(f"""
+                UPDATE {table}
+                SET name=?, total_amount=?, deadline=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (existing[0],))
+            return "updated"
+
+        duplicate = self.conn.execute(f"""
+            SELECT id
+            FROM {table}
+            WHERE IFNULL(name,'')=?
+              AND ABS(IFNULL(total_amount,0.0) - ?) < 0.000001
+              AND IFNULL(deadline,'')=?
+              AND (sync_id IS NULL OR TRIM(sync_id)='' OR sync_id != ?)
+            ORDER BY id LIMIT 1
+        """, (name, total, deadline, sync_id)).fetchone()
+        if duplicate:
+            self.conn.execute(f"""
+                UPDATE {table}
+                SET name=?, total_amount=?, deadline=?, sync_id=?, updated_at=?
+                WHERE id=?
+            """, values + (duplicate[0],))
+            return "updated"
+
+        self.conn.execute(f"""
+            INSERT INTO {table} (name, total_amount, deadline, sync_id, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, values)
+        return "inserted"
+
+    def _resolve_sync_ref(self, t_type, subcategory, ref_sync_id=""):
+        table = None
+        if t_type == "liability_repayment":
+            table = "liabilities"
+        elif t_type == "debtor_repayment":
+            table = "debtors"
+
+        safe_ref_sync_id = str(ref_sync_id or "").strip()
+        if table and safe_ref_sync_id:
+            row = self.conn.execute(f"SELECT id FROM {table} WHERE sync_id=? LIMIT 1", (safe_ref_sync_id,)).fetchone()
+            if row:
+                return row[0]
+
         if not subcategory:
             return None
         if t_type == "liability_repayment":
@@ -795,9 +928,14 @@ class DatabaseManager:
             return row[0] if row else None
         return None
 
-    def _resolve_bill_ref(self, category, description, ref_name=""):
+    def _resolve_bill_ref(self, category, description, ref_name="", ref_sync_id=""):
         if category != "Spłata Długu":
             return None
+        safe_ref_sync_id = str(ref_sync_id or "").strip()
+        if safe_ref_sync_id:
+            row = self.conn.execute("SELECT id FROM liabilities WHERE sync_id=? LIMIT 1", (safe_ref_sync_id,)).fetchone()
+            if row:
+                return row[0]
         for name in (ref_name, description):
             safe = str(name or "").strip()
             if not safe:
@@ -863,7 +1001,7 @@ class DatabaseManager:
             description,
             int(bill.get("is_paid") or 0),
             int(bill.get("is_recurring") or 0),
-            self._resolve_bill_ref(category, description, bill.get("ref_name") or ""),
+            self._resolve_bill_ref(category, description, bill.get("ref_name") or "", bill.get("ref_sync_id") or ""),
             sync_id,
             remote_updated,
         )
@@ -1090,7 +1228,7 @@ class DatabaseManager:
             int(tx.get("exclude_from_weekly") or 0),
             str(tx.get("details") or ""),
             attachment,
-            self._resolve_sync_ref(t_type, subcategory),
+            self._resolve_sync_ref(t_type, subcategory, tx.get("ref_sync_id") or ""),
             account_id,
             sync_id,
             remote_updated,
@@ -1303,15 +1441,18 @@ class DatabaseManager:
     def add_liability(self, name, amount, deadline, attachment=None):
         filename = None
         if attachment and isinstance(attachment, bytes):
-            import uuid
             filename = f"{uuid.uuid4().hex}.dat"
             with open(os.path.join(self.attachments_dir, filename), "wb") as f:
                 f.write(attachment)
 
         try:
             cursor = self.conn.execute(
-                "INSERT INTO liabilities (name, total_amount, deadline, attachment) VALUES (?, ?, ?, ?)",
-                (name, amount, deadline, filename)
+                """
+                INSERT INTO liabilities
+                    (name, total_amount, deadline, attachment, sync_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (name, amount, deadline, filename, str(uuid.uuid4()), self.sync_timestamp())
             )
             self.conn.commit()
             return cursor.lastrowid
@@ -1356,15 +1497,18 @@ class DatabaseManager:
     def add_debtor(self, name, amount, deadline, attachment=None):
         filename = None
         if attachment and isinstance(attachment, bytes):
-            import uuid
             filename = f"{uuid.uuid4().hex}.dat"
             with open(os.path.join(self.attachments_dir, filename), "wb") as f:
                 f.write(attachment)
 
         try:
             cursor = self.conn.execute(
-                "INSERT INTO debtors (name, total_amount, deadline, attachment) VALUES (?, ?, ?, ?)",
-                (name, amount, deadline, filename)
+                """
+                INSERT INTO debtors
+                    (name, total_amount, deadline, attachment, sync_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (name, amount, deadline, filename, str(uuid.uuid4()), self.sync_timestamp())
             )
             self.conn.commit()
             return cursor.lastrowid
