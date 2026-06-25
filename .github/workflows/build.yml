@@ -163,9 +163,10 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Dostosowanie pod synchronizację z Androidem
-            - Małe poprawki w bazie danych
+            - Synchronizowanie załączników
+            - W wersji Android dodawanie załącznika, edycja
             - Mniejsze lub większe poprawki w kodzie
+            - Poprawki w interfejsie Android
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

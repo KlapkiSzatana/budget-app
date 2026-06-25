@@ -3,6 +3,7 @@ import os
 import json
 import uuid
 import base64
+import hashlib
 from datetime import datetime, timedelta
 import config
 from config import APP_DIR, _
@@ -617,6 +618,7 @@ class DatabaseManager:
                    IFNULL(t.sync_id, ''), IFNULL(t.updated_at, ''),
                    IFNULL(t.sync_order, ''),
                    a.name, IFNULL(a.color, '#7f8c8d'),
+                   IFNULL(t.attachment, ''),
                    IFNULL(CASE
                        WHEN t.type='liability_repayment'
                            THEN (SELECT sync_id FROM liabilities WHERE id=t.ref_id)
@@ -643,8 +645,9 @@ class DatabaseManager:
                 "sync_order": row[9],
                 "account_name": row[10] or "Gotówka",
                 "account_color": row[11] or "#7f8c8d",
-                "ref_sync_id": row[12] or "",
+                "ref_sync_id": row[13] or "",
             })
+            transactions[-1].update(self._sync_attachment_metadata(row[12]))
 
         bills = []
         for row in self.conn.execute("""
@@ -944,6 +947,96 @@ class DatabaseManager:
             if row:
                 return row[0]
         return None
+
+    def _safe_attachment_name(self, raw):
+        name = os.path.basename(str(raw or "zalacznik.dat")).replace("\\", "_").replace("/", "_").strip()
+        return name or "zalacznik.dat"
+
+    def _attachment_sha256(self, path):
+        try:
+            digest = hashlib.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return digest.hexdigest()
+        except Exception:
+            return ""
+
+    def _sync_attachment_metadata(self, filename):
+        if not filename:
+            return {"attachment_present": False}
+        path = os.path.join(self.attachments_dir, os.path.basename(filename))
+        if not os.path.isfile(path):
+            return {"attachment_present": False}
+        meta = {
+            "attachment_present": True,
+            "attachment_name": self._safe_attachment_name(filename),
+            "attachment_size": os.path.getsize(path),
+        }
+        sha = self._attachment_sha256(path)
+        if sha:
+            meta["attachment_sha256"] = sha
+        return meta
+
+    def sync_attachment_file(self, sync_id):
+        sync_id = str(sync_id or "").strip()
+        if not sync_id:
+            return None
+        row = self.conn.execute(
+            "SELECT IFNULL(attachment,'') FROM transactions WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if not row or not row[0]:
+            return None
+        path = os.path.join(self.attachments_dir, os.path.basename(row[0]))
+        return path if os.path.isfile(path) else None
+
+    def needs_sync_attachment_download(self, sync_id, expected_size=-1, expected_sha256=""):
+        path = self.sync_attachment_file(sync_id)
+        if not path:
+            return True
+        try:
+            expected_size = int(expected_size)
+        except Exception:
+            expected_size = -1
+        if expected_size >= 0 and os.path.getsize(path) != expected_size:
+            return True
+        expected_sha256 = str(expected_sha256 or "").strip().lower()
+        return bool(expected_sha256 and self._attachment_sha256(path).lower() != expected_sha256)
+
+    def save_sync_attachment(self, sync_id, raw_name, source_path):
+        sync_id = str(sync_id or "").strip()
+        if not sync_id or not source_path or not os.path.isfile(source_path):
+            return False
+        row = self.conn.execute(
+            "SELECT IFNULL(attachment,'') FROM transactions WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if not row:
+            return False
+        old_filename = row[0] or ""
+        filename = f"{uuid.uuid4().hex}-{self._safe_attachment_name(raw_name)}"
+        target = os.path.join(self.attachments_dir, filename)
+        try:
+            os.makedirs(self.attachments_dir, exist_ok=True)
+            with open(source_path, "rb") as src, open(target, "wb") as dst:
+                for chunk in iter(lambda: src.read(1024 * 1024), b""):
+                    dst.write(chunk)
+            self.conn.execute("UPDATE transactions SET attachment=? WHERE sync_id=?", (filename, sync_id))
+            self.conn.commit()
+            if old_filename and old_filename != filename:
+                try:
+                    os.remove(os.path.join(self.attachments_dir, os.path.basename(old_filename)))
+                except Exception:
+                    pass
+            return True
+        except Exception:
+            try:
+                if os.path.exists(target):
+                    os.remove(target)
+            except Exception:
+                pass
+            return False
 
     def _write_sync_attachment(self, tx, existing_filename=None):
         has_payload = bool(str(tx.get("attachment_data") or "").strip())

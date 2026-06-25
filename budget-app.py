@@ -43,15 +43,27 @@ class SyncWorker(QObject):
     finished = Signal(dict)
     failed = Signal(str)
 
-    def __init__(self, peer_url, payload):
+    def __init__(self, peer_url, payload, db):
         super().__init__()
         self.peer_url = peer_url
         self.payload = payload
+        self.db = db
 
     def run(self):
         try:
-            from budget_sync import post_sync_payload
-            self.finished.emit(post_sync_payload(self.peer_url, self.payload))
+            from budget_sync import download_missing_sync_attachments, normalize_sync_url, post_sync_payload
+            incoming = post_sync_payload(self.peer_url, self.payload)
+            local = self.db.import_sync_payload(incoming)
+            attachments = download_missing_sync_attachments(
+                self.db,
+                normalize_sync_url(self.peer_url),
+                incoming,
+            )
+            self.finished.emit({
+                "incoming": incoming,
+                "local": local,
+                "attachments": attachments,
+            })
         except Exception as error:
             self.failed.emit(str(error))
         except BaseException as error:
@@ -441,7 +453,9 @@ class BudgetApp(QMainWindow):
             return
 
         try:
+            server = self.ensure_sync_server()
             payload = self.db.export_sync_payload()
+            payload["device_urls"] = server.urls()
         except Exception as error:
             QMessageBox.warning(self, _("Synchronizacja"), _("Nie udało się przygotować danych:\n{}").format(error))
             return
@@ -451,7 +465,7 @@ class BudgetApp(QMainWindow):
             QApplication.setOverrideCursor(Qt.WaitCursor)
             self.sync_cursor_active = True
             self.sync_thread = QThread(self)
-            self.sync_worker = SyncWorker(peer_url, payload)
+            self.sync_worker = SyncWorker(peer_url, payload, self.db)
             self.sync_worker.moveToThread(self.sync_thread)
             self.sync_thread.started.connect(self.sync_worker.run)
             self.sync_worker.finished.connect(self.sync_worker.deleteLater)
@@ -467,19 +481,23 @@ class BudgetApp(QMainWindow):
             self._sync_restore_ui()
             QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
 
-    def _sync_finished(self, incoming):
+    def _sync_finished(self, result):
         try:
-            local = self.db.import_sync_payload(incoming)
+            incoming = result.get("incoming", result) if isinstance(result, dict) else {}
+            local = result.get("local", {}) if isinstance(result, dict) else {}
+            attachments = result.get("attachments", {}) if isinstance(result, dict) else {}
             remote = incoming.get("imported", {}) if isinstance(incoming, dict) else {}
             self.load_transactions()
             QMessageBox.information(
                 self,
                 _("Synchronizacja"),
-                _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}").format(
+                _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}, załączniki: +{attachments}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}, załączniki: +{r_attachments}").format(
                     inserted=local.get("inserted", 0),
                     updated=local.get("updated", 0),
+                    attachments=attachments.get("downloaded", 0),
                     r_inserted=remote.get("inserted", 0),
                     r_updated=remote.get("updated", 0),
+                    r_attachments=remote.get("attachments_downloaded", 0),
                 )
             )
         except Exception as error:
