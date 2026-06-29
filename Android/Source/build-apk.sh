@@ -8,8 +8,8 @@ OUT_DIR="$ROOT_DIR/build/outputs/apk/debug"
 PACKAGE_NAME="pl.klapkiszatana.budgetmobile"
 MIN_SDK=29
 TARGET_SDK=35
-VERSION_CODE=46
-VERSION_NAME="1.2"
+VERSION_CODE=135
+VERSION_NAME="1.3"
 
 find_jdk_bin() {
     if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/javac" ]]; then

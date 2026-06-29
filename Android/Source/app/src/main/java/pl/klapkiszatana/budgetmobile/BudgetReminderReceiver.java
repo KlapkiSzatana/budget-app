@@ -13,6 +13,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 
 import org.json.JSONArray;
@@ -526,6 +527,8 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                 ? new Notification.Builder(context, CHANNEL_ID)
                 : new Notification.Builder(context);
         builder.setSmallIcon(R.drawable.ic_notification)
+                .setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.drawable.budget))
+                .setColor(0xffc0392b)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new Notification.BigTextStyle().bigText(body))

@@ -39,6 +39,7 @@ import android.util.Base64;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.inputmethod.EditorInfo;
@@ -153,6 +154,7 @@ public class MainActivity extends Activity {
     private float touchDownX;
     private float touchDownY;
     private int touchMode;
+    private boolean touchAllowsPullRefresh;
 
     private Spinner txTypeSpinner;
     private Spinner txAccountSpinner;
@@ -215,11 +217,18 @@ public class MainActivity extends Activity {
     }
 
     private boolean isTouchOutsideView(View view, MotionEvent event) {
+        return !isTouchInsideView(view, event);
+    }
+
+    private boolean isTouchInsideView(View view, MotionEvent event) {
+        if (view == null || event == null || !view.isShown()) {
+            return false;
+        }
         Rect bounds = new Rect();
         int[] location = new int[2];
         view.getLocationOnScreen(location);
         bounds.set(location[0], location[1], location[0] + view.getWidth(), location[1] + view.getHeight());
-        return !bounds.contains((int) event.getRawX(), (int) event.getRawY());
+        return bounds.contains((int) event.getRawX(), (int) event.getRawY());
     }
 
     private void hideKeyboard(View view) {
@@ -398,6 +407,9 @@ public class MainActivity extends Activity {
     private void showScreen(String screen, boolean scrollTop) {
         currentScreen = screen;
         selectedAttachment = null;
+        content.animate().cancel();
+        content.setAlpha(1.0f);
+        content.setTranslationX(0.0f);
         content.removeAllViews();
         buildTabs();
 
@@ -527,6 +539,7 @@ public class MainActivity extends Activity {
             touchDownX = event.getX();
             touchDownY = event.getY();
             touchMode = 0;
+            touchAllowsPullRefresh = canStartPullRefresh(event);
             content.animate().cancel();
             root.animate().cancel();
             if (refreshIndicator != null) {
@@ -539,13 +552,17 @@ public class MainActivity extends Activity {
         float dy = event.getY() - touchDownY;
         float absX = Math.abs(dx);
         float absY = Math.abs(dy);
+        int slop = Math.max(ViewConfiguration.get(this).getScaledTouchSlop(), dp(10));
 
         if (action == MotionEvent.ACTION_MOVE) {
             if (touchMode == 0) {
-                if (absX > dp(22) && absX > absY * 1.15f) {
+                if (absX > Math.max(dp(34), slop * 2) && absX > absY * 1.35f) {
                     touchMode = 1;
                     scroll.requestDisallowInterceptTouchEvent(true);
-                } else if (dy > dp(18) && absY > absX * 1.25f && scroll.getScrollY() == 0) {
+                } else if (touchAllowsPullRefresh
+                        && dy > Math.max(dp(54), slop * 4)
+                        && absY > absX * 1.65f
+                        && scroll.getScrollY() == 0) {
                     touchMode = 2;
                     scroll.requestDisallowInterceptTouchEvent(true);
                 }
@@ -580,12 +597,25 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    private boolean canStartPullRefresh(MotionEvent event) {
+        if (scroll == null || scroll.getScrollY() != 0) {
+            return false;
+        }
+        if ("transactions".equals(currentScreen) && isTouchInsideView(transactionListContainer, event)) {
+            return false;
+        }
+        return event.getY() <= Math.max(dp(180), scroll.getHeight() * 0.32f);
+    }
+
     private void updateHorizontalDrag(float dx) {
         int idx = currentScreenIndex();
         boolean atStart = idx == 0 && dx > 0;
         boolean atEnd = idx == SCREEN_ORDER.length - 1 && dx < 0;
-        float resistance = (atStart || atEnd) ? 0.28f : 0.92f;
-        content.setTranslationX(dx * resistance);
+        float maxDrag = (atStart || atEnd) ? dp(44) : dp(86);
+        float resistance = (atStart || atEnd) ? 0.22f : 0.42f;
+        float drag = Math.min(Math.abs(dx) * resistance, maxDrag);
+        content.setTranslationX(Math.copySign(drag, dx));
+        content.setAlpha(1.0f - Math.min(0.08f, drag / Math.max(1.0f, content.getWidth()) * 0.9f));
     }
 
     private void finishHorizontalDrag(float dx) {
@@ -593,11 +623,11 @@ public class MainActivity extends Activity {
         int direction = dx < 0 ? 1 : -1;
         int idx = currentScreenIndex();
         int next = Math.max(0, Math.min(SCREEN_ORDER.length - 1, idx + direction));
-        float threshold = Math.min(dp(120), width * 0.24f);
+        float threshold = Math.min(dp(112), Math.max(dp(84), width * 0.18f));
         if (next != idx && Math.abs(dx) >= threshold) {
             showScreenWithSlide(SCREEN_ORDER[next], direction);
         } else {
-            content.animate().translationX(0).setDuration(140).start();
+            content.animate().translationX(0).alpha(1.0f).setDuration(140).start();
         }
     }
 
@@ -620,14 +650,19 @@ public class MainActivity extends Activity {
             return;
         }
         screenTransitionRunning = true;
+        float outOffset = -direction * Math.min(dp(48), Math.max(dp(28), width * 0.08f));
+        float inOffset = direction * Math.min(dp(76), Math.max(dp(44), width * 0.14f));
         content.animate()
-                .translationX(-direction * width)
-                .setDuration(120)
+                .translationX(outOffset)
+                .alpha(0.92f)
+                .setDuration(70)
                 .withEndAction(() -> {
                     showScreen(screen);
-                    content.setTranslationX(direction * width);
+                    content.setTranslationX(inOffset);
+                    content.setAlpha(0.96f);
                     content.animate()
                             .translationX(0)
+                            .alpha(1.0f)
                             .setDuration(150)
                             .withEndAction(() -> screenTransitionRunning = false)
                             .start();
@@ -647,16 +682,16 @@ public class MainActivity extends Activity {
     }
 
     private void updateRefreshPull(float dy) {
-        float pull = Math.min(dy * 0.45f, dp(72));
+        float pull = Math.min(Math.max(0.0f, dy - dp(28)) * 0.36f, dp(88));
         root.setTranslationY(pull);
         if (refreshIndicator != null) {
             refreshIndicator.setVisibility(View.VISIBLE);
-            refreshIndicator.setAlpha(Math.min(1.0f, pull / Math.max(1, dp(42))));
+            refreshIndicator.setAlpha(Math.min(1.0f, pull / Math.max(1, dp(58))));
         }
     }
 
     private void finishRefreshPull(float dy) {
-        if (dy >= dp(96)) {
+        if (dy >= dp(156)) {
             refreshCurrentScreenBySwipe();
         } else {
             resetRefreshPull();
