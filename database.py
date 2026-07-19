@@ -86,6 +86,14 @@ class DatabaseManager:
 
         # 3. Pozostałe tabele systemowe
         self.conn.execute("CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT)")
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS sync_deletions (
+                table_name TEXT NOT NULL,
+                sync_id TEXT NOT NULL,
+                deleted_at TEXT NOT NULL,
+                PRIMARY KEY (table_name, sync_id)
+            )
+        """)
         self.conn.execute("CREATE TABLE IF NOT EXISTS shopping_lists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, created_at TEXT, status TEXT DEFAULT 'open')")
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS shopping_items (
@@ -267,6 +275,99 @@ class DatabaseManager:
 
     def sync_order_value(self):
         return f"{self.sync_timestamp()}|pc|{uuid.uuid4().hex}"
+
+    def _sync_deletable_tables(self):
+        return {
+            "transactions",
+            "pending_bills",
+            "shopping_lists",
+            "shopping_items",
+            "liabilities",
+            "debtors",
+        }
+
+    def _upsert_sync_deletion(self, table_name, sync_id, deleted_at):
+        table_name = str(table_name or "").strip()
+        sync_id = str(sync_id or "").strip()
+        deleted_at = str(deleted_at or self.sync_timestamp()).strip()
+        if table_name not in self._sync_deletable_tables() or not sync_id:
+            return False
+        existing = self.conn.execute(
+            "SELECT deleted_at FROM sync_deletions WHERE table_name=? AND sync_id=?",
+            (table_name, sync_id)
+        ).fetchone()
+        if existing and existing[0] >= deleted_at:
+            return False
+        self.conn.execute(
+            "INSERT OR REPLACE INTO sync_deletions (table_name, sync_id, deleted_at) VALUES (?, ?, ?)",
+            (table_name, sync_id, deleted_at)
+        )
+        return True
+
+    def _record_sync_deletion(self, table_name, row_id):
+        if table_name not in self._sync_deletable_tables():
+            return
+        row = self.conn.execute(
+            f"SELECT IFNULL(sync_id, '') FROM {table_name} WHERE id=?",
+            (row_id,)
+        ).fetchone()
+        if row and row[0]:
+            self._upsert_sync_deletion(table_name, row[0], self.sync_timestamp())
+
+    def _clear_sync_deletion(self, table_name, sync_id):
+        self.conn.execute(
+            "DELETE FROM sync_deletions WHERE table_name=? AND sync_id=?",
+            (table_name, str(sync_id or "").strip())
+        )
+
+    def _is_sync_deleted(self, table_name, sync_id, remote_updated):
+        row = self.conn.execute(
+            "SELECT deleted_at FROM sync_deletions WHERE table_name=? AND sync_id=?",
+            (table_name, str(sync_id or "").strip())
+        ).fetchone()
+        return bool(row and row[0] >= str(remote_updated or ""))
+
+    def _delete_local_synced_row(self, table_name, row_id):
+        if table_name == "transactions":
+            res = self.conn.execute("SELECT attachment FROM transactions WHERE id=?", (row_id,)).fetchone()
+            if res and res[0]:
+                try:
+                    os.remove(os.path.join(self.attachments_dir, os.path.basename(res[0])))
+                except Exception:
+                    pass
+        elif table_name == "shopping_lists":
+            self.conn.execute("DELETE FROM shopping_items WHERE list_id=?", (row_id,))
+
+        self.conn.execute(f"DELETE FROM {table_name} WHERE id=?", (row_id,))
+
+    def _import_sync_deletion(self, item):
+        if not isinstance(item, dict):
+            return None
+        table_name = str(item.get("table_name") or item.get("table") or "").strip()
+        sync_id = str(item.get("sync_id") or "").strip()
+        deleted_at = str(item.get("deleted_at") or item.get("updated_at") or self.sync_timestamp()).strip()
+        if table_name not in self._sync_deletable_tables() or not sync_id:
+            return None
+
+        changed_tombstone = self._upsert_sync_deletion(table_name, sync_id, deleted_at)
+        row = self.conn.execute(
+            f"SELECT id, IFNULL(updated_at, '') FROM {table_name} WHERE sync_id=?",
+            (sync_id,)
+        ).fetchone()
+        if row and row[1] <= deleted_at:
+            self._delete_local_synced_row(table_name, row[0])
+            return "deleted"
+        return "updated" if changed_tombstone else None
+
+    def _export_sync_deletions(self):
+        return [
+            {"table_name": table_name, "sync_id": sync_id, "deleted_at": deleted_at}
+            for table_name, sync_id, deleted_at in self.conn.execute("""
+                SELECT table_name, sync_id, deleted_at
+                FROM sync_deletions
+                ORDER BY deleted_at, table_name, sync_id
+            """).fetchall()
+        ]
 
     def ensure_transaction_sync_metadata(self):
         """Nadaje sync_id starym transakcjom i uzupełnia datę aktualizacji."""
@@ -541,6 +642,54 @@ class DatabaseManager:
             print(f"Błąd migracji oszczędności: {e}")
             return False
 
+    def transfer_accounts(self, from_acc_id, to_acc_id, amount, details=""):
+        """Ukryte przeniesienie środków między istniejącymi kontami."""
+        from datetime import datetime
+        try:
+            if from_acc_id == to_acc_id or amount <= 0:
+                return False
+
+            res_from = self.conn.execute("SELECT name FROM accounts WHERE id=?", (from_acc_id,)).fetchone()
+            res_to = self.conn.execute("SELECT name FROM accounts WHERE id=?", (to_acc_id,)).fetchone()
+            if not res_from or not res_to:
+                return False
+
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            from_name = res_from[0]
+            to_name = res_to[0]
+            desc = (details or "").strip()
+
+            self.conn.execute("BEGIN TRANSACTION")
+            self.add_transaction(
+                date=date_str,
+                t_type="account_transfer",
+                category=_("Migracja kasy"),
+                subcategory=_("Wypłata techniczna"),
+                amount=-amount,
+                exclude=1,
+                details=desc or _("Przeniesiono do: {}").format(to_name),
+                account_id=from_acc_id,
+                commit=False
+            )
+            self.add_transaction(
+                date=date_str,
+                t_type="account_transfer",
+                category=_("Migracja kasy"),
+                subcategory=_("Wpłata techniczna"),
+                amount=amount,
+                exclude=1,
+                details=desc or _("Pobrano z: {}").format(from_name),
+                account_id=to_acc_id,
+                commit=False
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            if self.conn.in_transaction:
+                self.conn.rollback()
+            print(f"Błąd migracji kasy: {e}")
+            return False
+
     def update_transaction(self, tid, tdate, ttype, tcat, tsub, tamt, tdetails, attachment=None, account_id=None):
         try:
             if attachment and isinstance(attachment, bytes):
@@ -572,6 +721,7 @@ class DatabaseManager:
 
     def delete_transaction(self, t_id):
         # --- NOWE: Usuwanie pliku przy usuwaniu transakcji ---
+        self._record_sync_deletion("transactions", t_id)
         res = self.conn.execute("SELECT attachment FROM transactions WHERE id=?", (t_id,)).fetchone()
         if res and res[0]:
             file_path = os.path.join(self.attachments_dir, res[0])
@@ -725,15 +875,17 @@ class DatabaseManager:
             "pending_bills": bills,
             "shopping_lists": shopping_lists,
             "shopping_items": shopping_items,
+            "deletions": self._export_sync_deletions(),
         }
 
     def import_sync_payload(self, payload):
         """Scala wpisy z drugiego urządzenia. Nie usuwa lokalnych danych."""
         if not isinstance(payload, dict):
-            return {"inserted": 0, "updated": 0}
+            return {"inserted": 0, "updated": 0, "deleted": 0}
 
         inserted = 0
         updated = 0
+        deleted = 0
         try:
             for account in payload.get("accounts", []):
                 if isinstance(account, dict):
@@ -750,6 +902,13 @@ class DatabaseManager:
             for person in payload.get("people", []):
                 if person:
                     self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (str(person),))
+
+            for item in payload.get("deletions", []):
+                change = self._import_sync_deletion(item)
+                if change == "deleted":
+                    deleted += 1
+                elif change == "updated":
+                    updated += 1
 
             for item in payload.get("liabilities", []):
                 if not isinstance(item, dict):
@@ -813,7 +972,7 @@ class DatabaseManager:
         except Exception:
             self.conn.rollback()
             raise
-        return {"inserted": inserted, "updated": updated}
+        return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
     def _ensure_account_by_name(self, name, initial=0.0, color="#7f8c8d"):
         safe_name = str(name or "Gotówka").strip() or "Gotówka"
@@ -860,6 +1019,8 @@ class DatabaseManager:
         if not sync_id:
             return None
         remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        if self._is_sync_deleted(table, sync_id, remote_updated):
+            return None
         existing = self.conn.execute(
             f"SELECT id, IFNULL(updated_at,'') FROM {table} WHERE sync_id=?",
             (sync_id,)
@@ -880,6 +1041,7 @@ class DatabaseManager:
                 SET name=?, total_amount=?, deadline=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (existing[0],))
+            self._clear_sync_deletion(table, sync_id)
             return "updated"
 
         duplicate = self.conn.execute(f"""
@@ -897,12 +1059,14 @@ class DatabaseManager:
                 SET name=?, total_amount=?, deadline=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (duplicate[0],))
+            self._clear_sync_deletion(table, sync_id)
             return "updated"
 
         self.conn.execute(f"""
             INSERT INTO {table} (name, total_amount, deadline, sync_id, updated_at)
             VALUES (?, ?, ?, ?, ?)
         """, values)
+        self._clear_sync_deletion(table, sync_id)
         return "inserted"
 
     def _resolve_sync_ref(self, t_type, subcategory, ref_sync_id=""):
@@ -1078,6 +1242,8 @@ class DatabaseManager:
         if not sync_id:
             return None
         remote_updated = str(bill.get("updated_at") or self.sync_timestamp())
+        if self._is_sync_deleted("pending_bills", sync_id, remote_updated):
+            return None
         existing = self.conn.execute(
             "SELECT id, IFNULL(updated_at,'') FROM pending_bills WHERE sync_id=?",
             (sync_id,)
@@ -1106,6 +1272,7 @@ class DatabaseManager:
                     is_recurring=?, ref_id=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (existing[0],))
+            self._clear_sync_deletion("pending_bills", sync_id)
             return "updated"
 
         duplicate = self.conn.execute("""
@@ -1126,6 +1293,7 @@ class DatabaseManager:
                     is_recurring=?, ref_id=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (duplicate[0],))
+            self._clear_sync_deletion("pending_bills", sync_id)
             return "updated"
 
         self.conn.execute("""
@@ -1133,6 +1301,7 @@ class DatabaseManager:
                 (due_date, amount, category, description, is_paid, is_recurring, ref_id, sync_id, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, values)
+        self._clear_sync_deletion("pending_bills", sync_id)
         return "inserted"
 
     def _import_sync_shopping_list(self, item):
@@ -1140,6 +1309,8 @@ class DatabaseManager:
         if not sync_id:
             return None, None
         remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        if self._is_sync_deleted("shopping_lists", sync_id, remote_updated):
+            return None, None
         existing = self.conn.execute(
             "SELECT id, IFNULL(updated_at,'') FROM shopping_lists WHERE sync_id=?",
             (sync_id,)
@@ -1156,6 +1327,7 @@ class DatabaseManager:
             self.conn.execute("""
                 UPDATE shopping_lists SET name=?, created_at=?, status=?, sync_id=?, updated_at=? WHERE id=?
             """, values + (existing[0],))
+            self._clear_sync_deletion("shopping_lists", sync_id)
             return "updated", existing[0]
 
         duplicate = self.conn.execute("""
@@ -1168,12 +1340,14 @@ class DatabaseManager:
             self.conn.execute("""
                 UPDATE shopping_lists SET name=?, created_at=?, status=?, sync_id=?, updated_at=? WHERE id=?
             """, values + (duplicate[0],))
+            self._clear_sync_deletion("shopping_lists", sync_id)
             return "updated", duplicate[0]
 
         cur = self.conn.execute("""
             INSERT INTO shopping_lists (name, created_at, status, sync_id, updated_at)
             VALUES (?, ?, ?, ?, ?)
         """, values)
+        self._clear_sync_deletion("shopping_lists", sync_id)
         return "inserted", cur.lastrowid
 
     def _local_shopping_list_id(self, list_sync_id, cache):
@@ -1190,10 +1364,12 @@ class DatabaseManager:
         list_sync_id = str(item.get("list_sync_id") or "").strip()
         if not sync_id or not list_sync_id:
             return None
+        remote_updated = str(item.get("updated_at") or self.sync_timestamp())
+        if self._is_sync_deleted("shopping_items", sync_id, remote_updated):
+            return None
         list_id = self._local_shopping_list_id(list_sync_id, list_id_by_sync)
         if not list_id:
             return None
-        remote_updated = str(item.get("updated_at") or self.sync_timestamp())
         existing = self.conn.execute(
             "SELECT id, IFNULL(updated_at,'') FROM shopping_items WHERE sync_id=?",
             (sync_id,)
@@ -1212,6 +1388,7 @@ class DatabaseManager:
                 SET list_id=?, product_name=?, quantity=?, store=?, is_checked=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (existing[0],))
+            self._clear_sync_deletion("shopping_items", sync_id)
             return "updated"
 
         duplicate = self.conn.execute("""
@@ -1226,12 +1403,14 @@ class DatabaseManager:
                 SET list_id=?, product_name=?, quantity=?, store=?, is_checked=?, sync_id=?, updated_at=?
                 WHERE id=?
             """, values + (duplicate[0],))
+            self._clear_sync_deletion("shopping_items", sync_id)
             return "updated"
 
         self.conn.execute("""
             INSERT INTO shopping_items (list_id, product_name, quantity, store, is_checked, sync_id, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, values)
+        self._clear_sync_deletion("shopping_items", sync_id)
         return "inserted"
 
     def _is_legacy_sync_order(self, value):
@@ -1282,6 +1461,8 @@ class DatabaseManager:
         if not sync_id:
             return None
         remote_updated = str(tx.get("updated_at") or self.sync_timestamp())
+        if self._is_sync_deleted("transactions", sync_id, remote_updated):
+            return None
         remote_has_order = bool(str(tx.get("sync_order") or "").strip())
         remote_order = str(tx.get("sync_order") or remote_updated or self.sync_order_value())
         existing = self.conn.execute(
@@ -1336,6 +1517,7 @@ class DatabaseManager:
                     details=?, attachment=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
                 WHERE id=?
             """, values + (existing[0],))
+            self._clear_sync_deletion("transactions", sync_id)
             return "updated"
 
         duplicate_id = self._find_legacy_duplicate_transaction(tx, account_id, sync_id, remote_order, remote_has_order)
@@ -1350,6 +1532,7 @@ class DatabaseManager:
                     details=?, attachment=?, ref_id=?, account_id=?, sync_id=?, updated_at=?, sync_order=?
                 WHERE id=?
             """, dup_values + (duplicate_id,))
+            self._clear_sync_deletion("transactions", sync_id)
             return "updated"
 
         insert_values = values[:7] + (self._write_sync_attachment(tx, None),) + values[8:]
@@ -1361,6 +1544,7 @@ class DatabaseManager:
             )
             VALUES (?, ?, ?, ?, ?, 'PLN', 1.0, ?, ?, ?, ?, ?, ?, ?, ?)
         """, insert_values)
+        self._clear_sync_deletion("transactions", sync_id)
         return "inserted"
 
     def get_year_transactions(self, year_str):
@@ -1554,6 +1738,7 @@ class DatabaseManager:
             return False
 
     def delete_liability(self, lid):
+        self._record_sync_deletion("liabilities", lid)
         self.conn.execute("DELETE FROM liabilities WHERE id=?", (lid,))
         self.conn.commit()
 
@@ -1610,6 +1795,7 @@ class DatabaseManager:
             return False
 
     def delete_debtor(self, did):
+        self._record_sync_deletion("debtors", did)
         self.conn.execute("DELETE FROM debtors WHERE id=?", (did,))
         self.conn.commit()
 
@@ -1693,6 +1879,7 @@ class DatabaseManager:
             if t_type == 'income': balance += amt
             elif t_type in ['expense', 'savings', 'liability_repayment', 'goal_deposit']: balance -= amt
             elif t_type == 'debtor_repayment': balance += amt # Zwrot od dłużnika to plus
+            elif t_type == 'account_transfer': balance += amt
         return balance
 
     def create_shopping_list(self, name):
@@ -1722,6 +1909,7 @@ class DatabaseManager:
         return cursor.fetchall()
 
     def delete_shopping_item(self, item_id):
+        self._record_sync_deletion("shopping_items", item_id)
         self.conn.execute("DELETE FROM shopping_items WHERE id=?", (item_id,))
         self.conn.commit()
 
@@ -1740,6 +1928,10 @@ class DatabaseManager:
         self.conn.commit()
 
     def delete_shopping_list(self, list_id):
+        child_ids = [row[0] for row in self.conn.execute("SELECT id FROM shopping_items WHERE list_id=?", (list_id,)).fetchall()]
+        for item_id in child_ids:
+            self._record_sync_deletion("shopping_items", item_id)
+        self._record_sync_deletion("shopping_lists", list_id)
         self.conn.execute("DELETE FROM shopping_items WHERE list_id=?", (list_id,))
         self.conn.execute("DELETE FROM shopping_lists WHERE id=?", (list_id,))
         self.conn.commit()
@@ -1752,6 +1944,38 @@ class DatabaseManager:
     def get_shops(self):
         shops = [r[0] for r in self.conn.execute("SELECT name FROM shops ORDER BY name").fetchall()]
         return [""] + shops
+
+    def get_text_suggestions(self, limit=800):
+        suggestions = set()
+        queries = [
+            "SELECT name FROM people",
+            "SELECT name FROM categories",
+            "SELECT name FROM shops",
+            "SELECT category FROM transactions",
+            "SELECT subcategory FROM transactions",
+            "SELECT details FROM transactions",
+            "SELECT description FROM pending_bills",
+            "SELECT name FROM liabilities",
+            "SELECT name FROM debtors",
+            "SELECT name FROM goals",
+            "SELECT product_name FROM shopping_items",
+            "SELECT quantity FROM shopping_items",
+            "SELECT store FROM shopping_items",
+        ]
+        for query in queries:
+            try:
+                for (value,) in self.conn.execute(query).fetchall():
+                    text = str(value or "").strip()
+                    if not text:
+                        continue
+                    suggestions.add(text)
+                    for line in text.replace(";", "\n").splitlines():
+                        line = line.strip()
+                        if line:
+                            suggestions.add(line)
+            except Exception:
+                pass
+        return sorted(suggestions, key=lambda value: value.lower())[:limit]
 
     def set_weekly_limit_for_week(self, monday_date, amount, categories_list):
         cat_json = json.dumps(categories_list)
@@ -1813,7 +2037,16 @@ class DatabaseManager:
         self.conn.commit()
 
     def delete_pending_bill(self, bill_id):
+        self._record_sync_deletion("pending_bills", bill_id)
         self.conn.execute("DELETE FROM pending_bills WHERE id = ?", (bill_id,))
+        self.conn.commit()
+
+    def update_pending_bill(self, bill_id, due_date, amount, category, description, is_recurring=0, ref_id=None):
+        self.conn.execute("""
+            UPDATE pending_bills
+            SET due_date=?, amount=?, category=?, description=?, is_recurring=?, ref_id=?, updated_at=?
+            WHERE id=?
+        """, (due_date, amount, category, description, is_recurring, ref_id, self.sync_timestamp(), bill_id))
         self.conn.commit()
 
     def toggle_bill_recurring(self, bill_id, current_status):
@@ -1960,6 +2193,8 @@ class DatabaseManager:
                 elif t_type == 'savings_migration':
                     # Migracja ma już znak w bazie (- dla wyjścia, + dla wejścia)
                     # Używamy +=, aby matematycznie zachować ten znak.
+                    current_balance += amt
+                elif t_type == 'account_transfer':
                     current_balance += amt
 
             return current_balance

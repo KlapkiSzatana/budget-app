@@ -6,7 +6,7 @@ import atexit
 import tempfile
 import time
 
-WERSJA = "3.3"
+WERSJA = "3.4"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"
@@ -390,6 +390,10 @@ class AppMenuConfig(QObject):
         act_sav.setShortcut(self.SHORTCUTS["edit_savings"])
         act_sav.triggered.connect(self.window.open_savings_dialog)
         edit_menu.addAction(act_sav)
+
+        act_cash_transfer = QAction(_("Migracja kasy między kontami"), self.window)
+        act_cash_transfer.triggered.connect(self.window.open_account_transfer_dialog)
+        edit_menu.addAction(act_cash_transfer)
 
     def _build_tools_menu(self, menu_bar):
         tools_menu = menu_bar.addMenu(_("Narzędzia"))

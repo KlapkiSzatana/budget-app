@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QComboBox, QPushButton, QDateEdit, QGroupBox, QFormLayout,
                                QDialogButtonBox, QRadioButton, QButtonGroup,
                                QProgressBar, QTextEdit, QSpinBox, QFrame, QWidget,
-                               QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView, QTableWidget, QTableWidgetItem, QHeaderView)
+                               QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView,
+                               QTableWidget, QTableWidgetItem, QHeaderView, QCompleter)
 from PySide6.QtCore import Qt, QDate
 from config import _, CASH_SAVINGS_NAME, MONTH_NAME
 try:
@@ -19,6 +20,35 @@ def space_button_box(button_box, spacing=12):
     layout = button_box.layout()
     if layout:
         layout.setSpacing(spacing)
+
+def install_autocomplete(widget, suggestions):
+    values = sorted({str(v).strip() for v in (suggestions or []) if str(v).strip()}, key=lambda x: x.lower())
+    if not values:
+        return
+
+    target = widget.lineEdit() if isinstance(widget, QComboBox) and widget.isEditable() else widget
+    if not isinstance(target, QLineEdit) or target.validator() is not None or target.isReadOnly():
+        return
+
+    completer = QCompleter(values, target)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    completer.setCompletionMode(QCompleter.PopupCompletion)
+    target.setCompleter(completer)
+    target._budget_completer = completer
+
+def install_dialog_autocomplete(dialog, db):
+    if not db or not hasattr(db, "get_text_suggestions"):
+        return
+    suggestions = db.get_text_suggestions()
+    skip_words = ("kwota", "0.00", "data", "termin", "rrrr", "adres", "pin", "port", "url")
+    for edit in dialog.findChildren(QLineEdit):
+        if isinstance(edit.parent(), QDateEdit) or edit.validator() is not None or edit.isReadOnly():
+            continue
+        hint = (edit.placeholderText() or "").lower()
+        if any(word in hint for word in skip_words):
+            continue
+        install_autocomplete(edit, suggestions)
 
 class ProcessingDialog(QDialog):
     def __init__(self, parent=None, title=None, label_text=None):
@@ -391,6 +421,7 @@ class IncomeDialog(QDialog):
         l.addRow(_("Szczegóły:"), self.details)
         l.addRow(_("Dokument:"), self.btn_attach)
         l.addRow(bb)
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -527,6 +558,7 @@ class AddExpenseDialog(QDialog):
         l.addRow(_("Kwota:"), self.amt)
         l.addRow("", self.cb_exclude)
         l.addRow(bb)
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -650,6 +682,7 @@ class AddGoalDialog(QDialog):
         l.addRow(_("Kwota celu (PLN):"), self.t)
         l.addItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Expanding)) # Odstęp
         l.addRow(self.bb)
+        install_dialog_autocomplete(self, self.db)
 
     def accept(self):
         from PySide6.QtWidgets import QMessageBox
@@ -773,6 +806,72 @@ class SavingsTransferDialog(QDialog):
             "amount": amt
         }
 
+class AccountTransferDialog(QDialog):
+    def __init__(self, parent=None, db_manager=None):
+        super().__init__(parent)
+        self.db = db_manager
+        self.setWindowTitle(_("Migracja kasy między kontami"))
+        self.resize(420, 240)
+
+        layout = QFormLayout(self)
+        self.from_acc = QComboBox()
+        self.to_acc = QComboBox()
+        accounts = self.db.get_accounts()
+        for acc_id, name, bal, acc_color in accounts:
+            self.from_acc.addItem(name, acc_id)
+            self.to_acc.addItem(name, acc_id)
+        if self.to_acc.count() > 1:
+            self.to_acc.setCurrentIndex(1)
+
+        self.amount = QLineEdit()
+        self.amount.setPlaceholderText("0.00")
+        from PySide6.QtCore import QRegularExpression
+        from PySide6.QtGui import QRegularExpressionValidator
+        self.amount.setValidator(QRegularExpressionValidator(QRegularExpression(r"[0-9.,]*"), self))
+
+        self.details = QLineEdit()
+        self.details.setPlaceholderText(_("Opis techniczny (opcjonalnie)"))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        space_button_box(buttons)
+        buttons.button(QDialogButtonBox.Save).setText(_("PRZENIEŚ"))
+        buttons.button(QDialogButtonBox.Cancel).setText(_("ANULUJ"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout.addRow(_("Z konta:"), self.from_acc)
+        layout.addRow(_("Na konto:"), self.to_acc)
+        layout.addRow(_("Kwota:"), self.amount)
+        layout.addRow(_("Szczegóły:"), self.details)
+        layout.addRow(buttons)
+        install_dialog_autocomplete(self, self.db)
+
+    def accept(self):
+        from PySide6.QtWidgets import QMessageBox
+        if self.from_acc.currentData() == self.to_acc.currentData():
+            QMessageBox.warning(self, _("Błąd"), _("Wybierz dwa różne konta."))
+            return
+        try:
+            amount = float(self.amount.text().replace(",", "."))
+            if amount <= 0:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, _("Błąd"), _("Podaj poprawną kwotę."))
+            return
+        super().accept()
+
+    def get_data(self):
+        try:
+            amount = float(self.amount.text().replace(",", "."))
+        except ValueError:
+            amount = 0.0
+        return {
+            "from_id": self.from_acc.currentData(),
+            "to_id": self.to_acc.currentData(),
+            "amount": amount,
+            "details": self.details.text().strip(),
+        }
+
 class AddSavingsDialog(QDialog):
     def __init__(self, parent=None, db_manager=None):
         super().__init__(parent)
@@ -860,6 +959,7 @@ class AddSavingsDialog(QDialog):
         l.addRow(_("Szczegóły:"), self.details)
         l.addRow(_("Dokument:"), self.btn_attach)
         l.addRow("", bottom_buttons)
+        install_dialog_autocomplete(self, self.db)
 
     def update_labels(self):
         """Aktualizuje etykiety, by było jasne co skąd wychodzi."""
@@ -1050,6 +1150,7 @@ class GoalOperationDialog(QDialog):
         self.update_labels()
         self.sync_default_account()
         self.update_goal_info()
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -1204,6 +1305,7 @@ class TransferDialog(QDialog):
         l.addRow(_("Do (cel):"), self.ct)
         l.addRow(_("Kwota:"), self.amt)
         l.addRow(bb)
+        install_dialog_autocomplete(self, self.db)
 
     def get_data(self):
         # Pobieranie danych z wymianą separatora dla float()
@@ -1313,6 +1415,7 @@ class LiabilitiesDialog(QDialog):
         self.layout.addWidget(self.buttons)
 
         self.toggle_mode()
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -1508,6 +1611,7 @@ class DebtorsDialog(QDialog):
         self.layout.addWidget(self.buttons)
 
         self.toggle_mode()
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -1781,6 +1885,7 @@ class EditDialog(QDialog):
         l.addRow(_("Kwota:"), self.a)
         l.addRow(_("Dokument:"), self.btn_attach)
         l.addRow(bb)
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -1844,6 +1949,7 @@ class BillsManagerDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.categories = categories
+        self.editing_bill_id = None
         self.setWindowTitle(_("Rachunki i opłaty"))
         self.resize(900, 600)
 
@@ -1881,13 +1987,14 @@ class BillsManagerDialog(QDialog):
         self.table.setColumnHidden(5, True) # Ukryte ID długu
         self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet("QTableWidget { border: 1px solid palette(mid); }")
+        self.table.doubleClicked.connect(self.edit_bill)
 
         self.layout.addWidget(QLabel(f"<b>{_('Oczekujące płatności:')}</b>"))
         self.layout.addWidget(self.table)
 
         # --- FORMULARZ DODAWANIA ---
-        form_group = QGroupBox(_("Dodaj nową płatność"))
-        form_layout = QHBoxLayout(form_group)
+        self.form_group = QGroupBox(_("Dodaj nową płatność"))
+        form_layout = QHBoxLayout(self.form_group)
 
         self.date_input = QDateEdit(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
@@ -1916,10 +2023,10 @@ class BillsManagerDialog(QDialog):
 
         self.recurring_cb = QCheckBox(_("Stały"))
 
-        btn_add = QPushButton(_("DODAJ"))
-        btn_add.setFixedWidth(80)
-        btn_add.setStyleSheet(inc_style)
-        btn_add.clicked.connect(self.add_bill)
+        self.btn_add = QPushButton(_("DODAJ"))
+        self.btn_add.setFixedWidth(90)
+        self.btn_add.setStyleSheet(inc_style)
+        self.btn_add.clicked.connect(self.add_bill)
 
         form_layout.addWidget(self.date_input)
         form_layout.addWidget(self.amt_input)
@@ -1927,14 +2034,18 @@ class BillsManagerDialog(QDialog):
         form_layout.addWidget(self.liability_selector) # Wstawiamy między kategorię a opis
         form_layout.addWidget(self.desc_input)
         form_layout.addWidget(self.recurring_cb)
-        form_layout.addWidget(btn_add)
-        self.layout.addWidget(form_group)
+        form_layout.addWidget(self.btn_add)
+        self.layout.addWidget(self.form_group)
 
         # --- PRZYCISKI AKCJI ---
         action_layout = QHBoxLayout()
         self.btn_pay = QPushButton(f"✅ {_('ZAPŁAĆ')}")
         self.btn_pay.setStyleSheet(inc_style)
         self.btn_pay.clicked.connect(self.pay_bill)
+
+        self.btn_edit = QPushButton(f"✏️ {_('EDYTUJ')}")
+        self.btn_edit.setStyleSheet(blue_style)
+        self.btn_edit.clicked.connect(self.edit_bill)
 
         self.btn_delete = QPushButton(f"🗑️ {_('USUŃ')}")
         self.btn_delete.setStyleSheet(exp_style)
@@ -1945,12 +2056,14 @@ class BillsManagerDialog(QDialog):
         btn_close.clicked.connect(self.reject)
 
         action_layout.addWidget(self.btn_pay)
+        action_layout.addWidget(self.btn_edit)
         action_layout.addWidget(self.btn_delete)
         action_layout.addStretch()
         action_layout.addWidget(btn_close)
         self.layout.addLayout(action_layout)
 
         self.load_data()
+        install_dialog_autocomplete(self, self.db)
 
     def refresh_liabilities_list(self):
         """Pobiera aktywne długi do listy wyboru."""
@@ -2014,13 +2127,55 @@ class BillsManagerDialog(QDialog):
                 ref_id = None
                 desc = self.desc_input.text().strip()
 
-            self.db.add_pending_bill(
-                self.date_input.date().toString("yyyy-MM-dd"),
-                amt, cat, desc, is_rec, ref_id=ref_id
-            )
-            self.amt_input.clear(); self.desc_input.clear(); self.load_data()
+            if self.editing_bill_id is None:
+                self.db.add_pending_bill(
+                    self.date_input.date().toString("yyyy-MM-dd"),
+                    amt, cat, desc, is_rec, ref_id=ref_id
+                )
+            else:
+                self.db.update_pending_bill(
+                    self.editing_bill_id,
+                    self.date_input.date().toString("yyyy-MM-dd"),
+                    amt, cat, desc, is_rec, ref_id=ref_id
+                )
+            self.reset_form()
+            self.load_data()
         except Exception as e:
             print(f"Błąd dodawania rachunku: {e}")
+
+    def reset_form(self):
+        self.editing_bill_id = None
+        self.form_group.setTitle(_("Dodaj nową płatność"))
+        self.btn_add.setText(_("DODAJ"))
+        self.amt_input.clear()
+        self.desc_input.clear()
+        self.recurring_cb.setChecked(False)
+        self.date_input.setDate(QDate.currentDate())
+        self.toggle_liability_selector(self.cat_input.currentText())
+
+    def edit_bill(self, _unused=None):
+        row = self.table.currentRow()
+        if row < 0:
+            return
+        self.editing_bill_id = int(self.table.item(row, 0).text())
+        self.date_input.setDate(QDate.fromString(self.table.item(row, 1).text(), "yyyy-MM-dd"))
+        self.amt_input.setText(self.table.item(row, 2).text().replace(" PLN", "").strip())
+        cat = self.table.item(row, 3).text()
+        if self.cat_input.findText(cat) < 0:
+            self.cat_input.addItem(cat)
+        self.cat_input.setCurrentText(cat)
+        self.recurring_cb.setChecked(bool(self.table.item(row, 0).data(Qt.UserRole)))
+        ref_id_str = self.table.item(row, 5).text()
+        ref_id = int(ref_id_str) if ref_id_str else None
+        self.toggle_liability_selector(cat)
+        if cat == _("Spłata Długu"):
+            idx = self.liability_selector.findData(ref_id)
+            if idx >= 0:
+                self.liability_selector.setCurrentIndex(idx)
+        else:
+            self.desc_input.setText(self.table.item(row, 4).text().replace("🔄 ", ""))
+        self.form_group.setTitle(_("Edytuj płatność"))
+        self.btn_add.setText(_("ZAPISZ"))
 
     def pay_bill(self):
         row = self.table.currentRow()
@@ -2152,6 +2307,7 @@ class BillPaymentConfirmDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
+        install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog

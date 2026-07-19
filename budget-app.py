@@ -491,12 +491,14 @@ class BudgetApp(QMainWindow):
             QMessageBox.information(
                 self,
                 _("Synchronizacja"),
-                _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}, załączniki: +{attachments}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}, załączniki: +{r_attachments}").format(
+                _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}, usunięto: {deleted}, załączniki: +{attachments}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}, usunięto: {r_deleted}, załączniki: +{r_attachments}").format(
                     inserted=local.get("inserted", 0),
                     updated=local.get("updated", 0),
+                    deleted=local.get("deleted", 0),
                     attachments=attachments.get("downloaded", 0),
                     r_inserted=remote.get("inserted", 0),
                     r_updated=remote.get("updated", 0),
+                    r_deleted=remote.get("deleted", 0),
                     r_attachments=remote.get("attachments_downloaded", 0),
                 )
             )
@@ -1954,7 +1956,7 @@ class BudgetApp(QMainWindow):
                             show = True
 
                 if show:
-                    if ttype == "savings_migration":
+                    if ttype in ("savings_migration", "account_transfer"):
                         continue
                     filtered_data.append(r)
 
@@ -2030,15 +2032,17 @@ class BudgetApp(QMainWindow):
 
                 acc_inc = sum(r[5] for r in acc_history if r[2] in ['income', 'debtor_repayment'])
                 acc_exp = sum(r[5] for r in acc_history if r[2] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
+                acc_transfer = sum(r[5] for r in acc_history if r[2] == 'account_transfer')
 
-                acc_bal = initial_bal + acc_inc - acc_exp
+                acc_bal = initial_bal + acc_inc - acc_exp + acc_transfer
                 current_total_bal += acc_bal
 
                 hist_before = [r for r in acc_history if r[1] < first_day_of_month]
                 p_inc = sum(r[5] for r in hist_before if r[2] in ['income', 'debtor_repayment'])
                 p_exp = sum(r[5] for r in hist_before if r[2] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
+                p_transfer = sum(r[5] for r in hist_before if r[2] == 'account_transfer')
 
-                acc_prev_bal = initial_bal + p_inc - p_exp
+                acc_prev_bal = initial_bal + p_inc - p_exp + p_transfer
                 total_prev_bal += acc_prev_bal
 
                 if abs(acc_prev_bal) > 0.001:
@@ -2329,6 +2333,16 @@ class BudgetApp(QMainWindow):
         if self.current_dialog.exec():
             self.save_transaction(self.current_dialog.get_data())
 
+    def open_account_transfer_dialog(self):
+        from dialogs import AccountTransferDialog
+        self.current_dialog = AccountTransferDialog(self, self.db)
+        if self.current_dialog.exec():
+            data = self.current_dialog.get_data()
+            if self.db.transfer_accounts(data["from_id"], data["to_id"], data["amount"], data.get("details", "")):
+                self.schedule_update()
+            else:
+                QMessageBox.warning(self, _("Błąd"), _("Nie udało się przenieść środków. Sprawdź konta i kwotę."))
+
     def open_liabilities_dialog(self):
         from dialogs import LiabilitiesDialog
         self.current_dialog = LiabilitiesDialog(self, self.db)
@@ -2356,7 +2370,8 @@ class BudgetApp(QMainWindow):
                     0,
                     dodatkowy_opis,
                     dat.get('attachment'),
-                    ref_id=dat['ref_id']
+                    ref_id=dat['ref_id'],
+                    account_id=dat.get('account_id', 1)
                 )
             self.schedule_update()
 
@@ -2370,7 +2385,8 @@ class BudgetApp(QMainWindow):
                 self.db.add_transaction(
                     QDate.currentDate().toString("yyyy-MM-dd"),
                     'expense', _('Pożyczki'), dat['name'], dat['amount'],
-                    0, "", dat.get('attachment'), ref_id=new_id
+                    0, "", dat.get('attachment'), ref_id=new_id,
+                    account_id=dat.get('account_id', 1)
                 )
                 QMessageBox.information(self, "OK", _("Zapisano dłużnika i dodano wydatek."))
             else:
@@ -2744,8 +2760,9 @@ class BudgetApp(QMainWindow):
 
             acc_inc = sum(r[1] for r in acc_history if r[0] in ['income', 'debtor_repayment'])
             acc_exp = sum(r[1] for r in acc_history if r[0] in ['expense', 'liability_repayment', 'savings', 'goal_deposit'])
+            acc_transfer = sum(r[1] for r in acc_history if r[0] == 'account_transfer')
 
-            acc_bal = initial_bal + acc_inc - acc_exp
+            acc_bal = initial_bal + acc_inc - acc_exp + acc_transfer
 
             acc_data.append((acc_id, acc_name, acc_bal))
 

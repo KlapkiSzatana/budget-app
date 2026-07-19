@@ -208,7 +208,7 @@ class PDFReportGenerator:
 
 
         #valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01]
-        valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01 and t[2] != 'savings_migration']
+        valid_transactions = [t for t in transactions if abs(t[5]) >= 0.01 and t[2] not in ('savings_migration', 'account_transfer')]
 
 
 

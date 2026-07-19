@@ -163,8 +163,6 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Synchronizowanie załączników
-            - W wersji Android dodawanie załącznika, edycja
             - Mniejsze lub większe poprawki w kodzie
             - Poprawki w interfejsie Android
             ---
