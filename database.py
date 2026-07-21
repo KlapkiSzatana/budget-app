@@ -526,6 +526,26 @@ class DatabaseManager:
                 os.remove(oldest)
         except: pass
 
+    def _safe_backup_member_path(self, base_dir, member):
+        import os
+        name = str(member or "").replace("\\", "/")
+        if not name or name.startswith("/") or "\x00" in name:
+            raise ValueError("Nieprawidlowy wpis ZIP")
+        target = os.path.abspath(os.path.join(base_dir, name))
+        base = os.path.abspath(base_dir)
+        if os.path.commonpath([base, target]) != base:
+            raise ValueError("Nieprawidlowy wpis ZIP")
+        return target
+
+    def _copy_backup_member(self, zipf, member, target_path):
+        import os
+        import shutil
+        parent = os.path.dirname(target_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with zipf.open(member) as src, open(target_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+
     def restore_database(self, backup_file, progress_callback=None):
         import os
         import gc
@@ -548,7 +568,7 @@ class DatabaseManager:
                 if progress_callback:
                     progress_callback(20)
 
-                zipf.extract("budzet.db", os.path.dirname(self.db_path))
+                self._copy_backup_member(zipf, "budzet.db", self.db_path)
                 if progress_callback:
                     progress_callback(50)
 
@@ -556,9 +576,15 @@ class DatabaseManager:
                     shutil.rmtree(self.attachments_dir)
                 os.makedirs(self.attachments_dir, exist_ok=True)
 
+                db_dir = os.path.abspath(os.path.dirname(self.db_path))
+                attachments_dir = os.path.abspath(self.attachments_dir)
                 for member in contents:
-                    if member.startswith("attachments/"):
-                        zipf.extract(member, os.path.dirname(self.attachments_dir))
+                    if not member.startswith("attachments/") or member.endswith("/"):
+                        continue
+                    target = self._safe_backup_member_path(db_dir, member)
+                    if os.path.commonpath([attachments_dir, os.path.abspath(target)]) != attachments_dir:
+                        raise ValueError("Nieprawidlowy wpis ZIP")
+                    self._copy_backup_member(zipf, member, target)
 
                 if progress_callback:
                     progress_callback(100)
@@ -696,7 +722,7 @@ class DatabaseManager:
                 # Usuń stary plik jeśli istniał
                 old = self.conn.execute("SELECT attachment FROM transactions WHERE id=?", (tid,)).fetchone()
                 if old and old[0]:
-                    old_path = os.path.join(self.attachments_dir, old[0])
+                    old_path = os.path.join(self.attachments_dir, os.path.basename(old[0]))
                     if os.path.exists(old_path): os.remove(old_path)
 
                 # Zapisz nowy plik
@@ -724,7 +750,7 @@ class DatabaseManager:
         self._record_sync_deletion("transactions", t_id)
         res = self.conn.execute("SELECT attachment FROM transactions WHERE id=?", (t_id,)).fetchone()
         if res and res[0]:
-            file_path = os.path.join(self.attachments_dir, res[0])
+            file_path = os.path.join(self.attachments_dir, os.path.basename(res[0]))
             if os.path.exists(file_path):
                 try: os.remove(file_path)
                 except: pass
@@ -1945,23 +1971,71 @@ class DatabaseManager:
         shops = [r[0] for r in self.conn.execute("SELECT name FROM shops ORDER BY name").fetchall()]
         return [""] + shops
 
-    def get_text_suggestions(self, limit=800):
+    def get_text_suggestions(self, kind="all", limit=800):
         suggestions = set()
-        queries = [
-            "SELECT name FROM people",
-            "SELECT name FROM categories",
-            "SELECT name FROM shops",
-            "SELECT category FROM transactions",
-            "SELECT subcategory FROM transactions",
-            "SELECT details FROM transactions",
-            "SELECT description FROM pending_bills",
-            "SELECT name FROM liabilities",
-            "SELECT name FROM debtors",
-            "SELECT name FROM goals",
-            "SELECT product_name FROM shopping_items",
-            "SELECT quantity FROM shopping_items",
-            "SELECT store FROM shopping_items",
-        ]
+        kind = str(kind or "all").strip().lower()
+        query_groups = {
+            "person": [
+                "SELECT name FROM people",
+                "SELECT DISTINCT category FROM transactions WHERE type='income'",
+            ],
+            "category": [
+                "SELECT name FROM categories",
+                "SELECT DISTINCT category FROM transactions WHERE type='expense'",
+                "SELECT DISTINCT category FROM pending_bills",
+            ],
+            "source": [
+                "SELECT DISTINCT subcategory FROM transactions WHERE type='income'",
+                "SELECT DISTINCT details FROM transactions WHERE type='income'",
+            ],
+            "shop": [
+                "SELECT name FROM shops",
+                "SELECT DISTINCT subcategory FROM transactions WHERE type='expense'",
+                "SELECT DISTINCT store FROM shopping_items",
+            ],
+            "description": [
+                "SELECT DISTINCT subcategory FROM transactions",
+                "SELECT DISTINCT description FROM pending_bills",
+                "SELECT name FROM shops",
+            ],
+            "details": [
+                "SELECT DISTINCT details FROM transactions",
+                "SELECT DISTINCT product_name FROM shopping_items",
+                "SELECT DISTINCT quantity FROM shopping_items",
+                "SELECT DISTINCT description FROM pending_bills",
+            ],
+            "expense_details": [
+                "SELECT DISTINCT details FROM transactions WHERE type='expense'",
+            ],
+            "bill": [
+                "SELECT DISTINCT description FROM pending_bills",
+                "SELECT DISTINCT subcategory FROM transactions WHERE category='Opłaty'",
+                "SELECT DISTINCT subcategory FROM transactions WHERE category='Spłata Długu'",
+            ],
+            "goal": [
+                "SELECT name FROM goals",
+            ],
+            "liability": [
+                "SELECT name FROM liabilities",
+                "SELECT DISTINCT subcategory FROM transactions WHERE type='liability_repayment'",
+            ],
+            "debtor": [
+                "SELECT name FROM debtors",
+                "SELECT DISTINCT subcategory FROM transactions WHERE type='debtor_repayment'",
+            ],
+            "account": [
+                "SELECT name FROM accounts",
+            ],
+            "product": [
+                "SELECT DISTINCT product_name FROM shopping_items",
+            ],
+        }
+        if kind in ("all", "mixed"):
+            queries = []
+            for group in query_groups.values():
+                queries.extend(group)
+        else:
+            queries = query_groups.get(kind, query_groups["description"])
         for query in queries:
             try:
                 for (value,) in self.conn.execute(query).fetchall():
@@ -2076,7 +2150,7 @@ class DatabaseManager:
         # --- ZMIANA: Pobieranie z pliku zamiast z bazy ---
         res = self.conn.execute("SELECT attachment FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         if res and res[0]:
-            file_path = os.path.join(self.attachments_dir, res[0])
+            file_path = os.path.join(self.attachments_dir, os.path.basename(res[0]))
             if os.path.exists(file_path):
                 try:
                     with open(file_path, "rb") as f:

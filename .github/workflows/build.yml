@@ -163,8 +163,11 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Mniejsze lub większe poprawki w kodzie
+            - Zmiana numeracji i ujednolicenie dla wersji PC i Android
             - Poprawki w interfejsie Android
+            - Poprawki w interfejsie PC
+            - Poprawki błędów spłat zadłużeń
+            - Poprawki luki ZIP przy odtwarzaniu bazy
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

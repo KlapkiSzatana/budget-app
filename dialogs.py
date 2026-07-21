@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QProgressBar, QTextEdit, QSpinBox, QFrame, QWidget,
                                QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView,
                                QTableWidget, QTableWidgetItem, QHeaderView, QCompleter)
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QObject, QEvent, QTimer
+from PySide6.QtGui import QTextCursor
 from config import _, CASH_SAVINGS_NAME, MONTH_NAME
 try:
     import shiboken
@@ -37,18 +38,199 @@ def install_autocomplete(widget, suggestions):
     target.setCompleter(completer)
     target._budget_completer = completer
 
+class TextEditCompleter(QObject):
+    def __init__(self, editor, suggestions):
+        super().__init__(editor)
+        self.editor = editor
+        values = set()
+        for value in suggestions or []:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            for line in text.replace(";", "\n").splitlines():
+                line = line.strip()
+                if line:
+                    values.add(line)
+        self.suggestions = sorted(values, key=lambda x: x.lower())
+        self.popup = QListWidget(editor)
+        self.popup.setWindowFlags(Qt.ToolTip)
+        self.popup.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.popup.setFocusPolicy(Qt.NoFocus)
+        self.popup.setUniformItemSizes(True)
+        self.popup.setMaximumHeight(180)
+        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text()))
+        self._inserting = False
+        self._pending_popup = False
+        editor.installEventFilter(self)
+        editor.textChanged.connect(self.schedule_popup)
+
+    def eventFilter(self, obj, event):
+        if obj is self.editor and event.type() == QEvent.KeyPress:
+            if self.popup.isVisible():
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+                    current = self.popup.currentItem()
+                    if current:
+                        self.insert_completion(current.text(), add_newline=key in (Qt.Key_Return, Qt.Key_Enter))
+                        return True
+                if key == Qt.Key_Escape:
+                    self.popup.hide()
+                    return True
+                if key in (Qt.Key_Down, Qt.Key_Up):
+                    self.move_selection(1 if key == Qt.Key_Down else -1)
+                    return True
+        return super().eventFilter(obj, event)
+
+    def current_prefix(self):
+        cursor = self.editor.textCursor()
+        cursor.select(QTextCursor.WordUnderCursor)
+        return cursor.selectedText().strip()
+
+    def schedule_popup(self):
+        if self._inserting or self._pending_popup:
+            return
+        self._pending_popup = True
+        QTimer.singleShot(0, self.update_popup)
+
+    def update_popup(self):
+        self._pending_popup = False
+        if self._inserting:
+            return
+        if shiboken is not None:
+            if not shiboken.isValid(self.editor) or not shiboken.isValid(self.popup):
+                return
+        if not self.editor.isVisible():
+            self.popup.hide()
+            return
+        prefix = self.current_prefix()
+        if len(prefix) < 1:
+            self.popup.hide()
+            return
+        prefix_lower = prefix.lower()
+        starts = [value for value in self.suggestions if value.lower().startswith(prefix_lower)]
+        contains = [value for value in self.suggestions if prefix_lower in value.lower() and value not in starts]
+        matches = (starts + contains)[:30]
+        if not matches:
+            self.popup.hide()
+            return
+
+        self.popup.clear()
+        self.popup.addItems(matches)
+        self.popup.setCurrentRow(0)
+        rect = self.editor.cursorRect()
+        width = max(220, self.popup.sizeHintForColumn(0) + self.popup.verticalScrollBar().sizeHint().width() + 20)
+        row_height = max(24, self.popup.sizeHintForRow(0))
+        height = min(180, row_height * min(len(matches), 7) + 6)
+        self.popup.resize(width, height)
+        self.popup.move(self.editor.viewport().mapToGlobal(rect.bottomLeft()))
+        self.popup.show()
+        self.popup.raise_()
+
+    def move_selection(self, offset):
+        count = self.popup.count()
+        if count <= 0:
+            return
+        row = self.popup.currentRow()
+        if row < 0:
+            row = 0
+        self.popup.setCurrentRow(max(0, min(count - 1, row + offset)))
+
+    def insert_completion(self, completion, add_newline=False):
+        completion = str(completion or "").strip()
+        if not completion:
+            return
+        if shiboken is not None:
+            if not shiboken.isValid(self.editor) or not shiboken.isValid(self.popup):
+                return
+        self._inserting = True
+        try:
+            cursor = self.editor.textCursor()
+            cursor.select(QTextCursor.WordUnderCursor)
+            cursor.insertText(completion)
+            if add_newline:
+                cursor.insertBlock()
+            self.editor.setTextCursor(cursor)
+            self.popup.hide()
+        finally:
+            self._inserting = False
+
+def install_textedit_autocomplete(widget, suggestions):
+    values = [str(v).strip() for v in (suggestions or []) if str(v).strip()]
+    if not values:
+        return
+    widget._budget_text_completer = TextEditCompleter(widget, values)
+
+def _dialog_widget_names(dialog, widget):
+    names = []
+    for name, value in vars(dialog).items():
+        if value is widget:
+            names.append(name)
+        elif isinstance(value, QComboBox) and value.isEditable() and value.lineEdit() is widget:
+            names.append(name)
+    return names
+
+def _autocomplete_kind(dialog, widget):
+    names = " ".join(_dialog_widget_names(dialog, widget)).lower()
+    cls = dialog.__class__.__name__.lower()
+    hint = ""
+    if isinstance(widget, QLineEdit):
+        hint = widget.placeholderText() or ""
+    elif isinstance(widget, QTextEdit):
+        hint = widget.placeholderText() or ""
+    raw = f"{cls} {names} {hint}".lower()
+
+    if any(word in raw for word in ("kwota", "0.00", "data", "termin", "rrrr", "adres", "pin", "port", "url", "ścież", "lokalizacja")):
+        return None
+    if cls == "addexpensedialog" and isinstance(widget, QTextEdit) and ("details" in names or "co kupiono" in raw):
+        return "expense_details"
+    if "details" in names or "det" == names or "szczeg" in raw or "dodatkowy opis" in raw or "co kupiono" in raw:
+        return "details"
+    if "person" in names or "osoba" in raw:
+        return "person"
+    if "src" in names or "źród" in raw or "zrod" in raw:
+        return "source"
+    if "cat_input" in names or names in ("cat", "c") or "kategoria" in raw:
+        return "category"
+    if "bill" in cls or "czynsz" in raw:
+        return "bill"
+    if "desc" in names or names in ("s", "sub") or "sklep" in raw or "gdzie" in raw or "opis" in raw:
+        return "shop" if ("sklep" in raw or "gdzie" in raw) else "description"
+    if "goal" in cls or "cel" in raw:
+        return "goal"
+    if "liabilities" in cls or "wierzyciel" in raw:
+        return "liability"
+    if "debtors" in cls or "dłużnik" in raw or "dluznik" in raw:
+        return "debtor"
+    if "produkt" in raw:
+        return "product"
+    if "konto" in raw:
+        return "account"
+    return "description"
+
 def install_dialog_autocomplete(dialog, db):
     if not db or not hasattr(db, "get_text_suggestions"):
         return
-    suggestions = db.get_text_suggestions()
-    skip_words = ("kwota", "0.00", "data", "termin", "rrrr", "adres", "pin", "port", "url")
+    combo_line_edits = set()
+    for combo in dialog.findChildren(QComboBox):
+        if not combo.isEditable():
+            continue
+        combo_line_edits.add(combo.lineEdit())
+        kind = _autocomplete_kind(dialog, combo.lineEdit())
+        if kind:
+            install_autocomplete(combo, db.get_text_suggestions(kind))
+
     for edit in dialog.findChildren(QLineEdit):
-        if isinstance(edit.parent(), QDateEdit) or edit.validator() is not None or edit.isReadOnly():
+        if edit in combo_line_edits or isinstance(edit.parent(), QDateEdit) or edit.validator() is not None or edit.isReadOnly():
             continue
-        hint = (edit.placeholderText() or "").lower()
-        if any(word in hint for word in skip_words):
+        kind = _autocomplete_kind(dialog, edit)
+        if not kind:
             continue
-        install_autocomplete(edit, suggestions)
+        install_autocomplete(edit, db.get_text_suggestions(kind))
+
+    for edit in dialog.findChildren(QTextEdit):
+        kind = _autocomplete_kind(dialog, edit)
+        if kind:
+            install_textedit_autocomplete(edit, db.get_text_suggestions(kind))
 
 class ProcessingDialog(QDialog):
     def __init__(self, parent=None, title=None, label_text=None):

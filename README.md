@@ -68,31 +68,9 @@ paru -S budget-app-bin
 
 ---
 
-### OPCJA B: Instalacja ze źródeł
-
-Program buduje się bezpośrednio z kodu źródłowego.
-
-System automatycznie pobierze:
-- środowisko Python,
-- PySide6,
-- Pillow,
-- oraz wszystkie wymagane zależności.
-
-Jeśli używasz pomocnika AUR (`yay` lub `paru`), wpisz:
-
-```bash
-yay -S budget-app
-```
-
-lub
-
-```bash
-paru -S budget-app
-```
-
 ---
 
-### OPCJA C: Ręczna instalacja przez PKGBUILD (Bez pomocników AUR)
+### OPCJA B: Ręczna instalacja przez PKGBUILD (Bez pomocników AUR)
 
 Jeśli nie używasz `yay` ani `paru`, możesz pobrać paczkę ręcznie i zbudować ją przez `makepkg`.
 
@@ -134,12 +112,6 @@ Aby całkowicie usunąć aplikację z systemu:
 
 ```bash
 sudo pacman -Rs budget-app-bin
-```
-
-### Wersja ze źródła
-
-```bash
-sudo pacman -Rs budget-app
 ```
 
 ---
