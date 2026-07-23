@@ -36,6 +36,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
     private static final int REQUEST_OPEN_BASE = 4300;
     private static final int TASKS_NOTIFICATION_ID = 64001;
     private static final long MINUTE = 60L * 1000L;
+    private static final int MAX_DAILY_NOTIFICATIONS = 5;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -67,14 +68,15 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         try {
             db = SQLiteDatabase.openDatabase(dbFile.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
             sent = checkMorningBalance(context, db);
-            refreshPersistentTasks(context, db);
-            sent = sent
-                    || checkSmartNotifications(context, db)
-                    || checkWeeklyLimit(context, db)
-                    || checkGoals(context, db)
-                    || checkDailyExpenseReminder(context, db)
-                    || checkPurchaseGap(context, db)
-                    || checkWeeklyBackup(context);
+            if (!sent) sent = checkSmartNotifications(context, db);
+            if (!sent) sent = checkBills(context, db);
+            if (!sent) sent = checkDebts(context, db);
+            if (!sent) sent = checkWeeklyLimit(context, db);
+            if (!sent) sent = checkGoals(context, db);
+            if (!sent) sent = checkDailyExpenseReminder(context, db);
+            if (!sent) sent = checkPurchaseGap(context, db);
+            if (!sent) sent = checkWeeklyBackup(context);
+            if (!sent) sent = refreshPersistentTasks(context, db);
         } catch (Exception ignored) {
         } finally {
             if (db != null) {
@@ -187,31 +189,28 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         if (p.getLong("smart_balance_at", 0L) > 0L && p.getLong("smart_balance_at", 0L) <= now
                 && p.getBoolean("notify_balance", true)) {
             edit.remove("smart_balance_at").apply();
-            notify(context, nextVariant(context, "smart_balance_title",
+            return notify(context, nextVariant(context, "smart_balance_title",
                     "Stan kont po wpisie",
                     "Aktualny stan po zmianie",
                     "Budżet po ostatnim wpisie"), accountBalanceBody(db), "home");
-            return true;
         }
         if (p.getLong("smart_expense_1_at", 0L) > 0L && p.getLong("smart_expense_1_at", 0L) <= now
                 && p.getBoolean("notify_daily_expenses", true)) {
             edit.remove("smart_expense_1_at").apply();
-            notify(context, "Wydatki", nextVariant(context, "smart_expense_1",
+            return notify(context, "Wydatki", nextVariant(context, "smart_expense_1",
                     "Jeśli doszły kolejne wydatki, dopisz je od razu.",
                     "Mała kontrola po zakupach: coś jeszcze dopisać?",
                     "Lepiej wpisać teraz niż odtwarzać wieczorem.",
                     "Jeśli paragon jeszcze leży pod ręką, wrzuć go do budżetu."), "add");
-            return true;
         }
         if (p.getLong("smart_expense_2_at", 0L) > 0L && p.getLong("smart_expense_2_at", 0L) <= now
                 && p.getBoolean("notify_daily_expenses", true)) {
             edit.remove("smart_expense_2_at").apply();
-            notify(context, "Wydatki", nextVariant(context, "smart_expense_2",
+            return notify(context, "Wydatki", nextVariant(context, "smart_expense_2",
                     "Krótka kontrola: czy wszystkie dzisiejsze wydatki są wpisane?",
                     "Dzień jeszcze trwa. Sprawdź, czy budżet ma wszystkie wydatki.",
                     "Jeśli było coś po drodze, dopisz zanim wyleci z głowy.",
                     "Masz chwilę na porządek w dzisiejszych wydatkach."), "add");
-            return true;
         }
         return false;
     }
@@ -320,9 +319,8 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             return false;
         }
         String weekday = weekdayName(cal);
-        notify(context, "Witaj, dzisiaj " + weekday,
+        return notify(context, "Witaj, dzisiaj " + weekday,
                 "Stan kont wygląda następująco:\n" + accountBalanceBody(db), "home");
-        return true;
     }
 
     private static boolean checkBills(Context context, SQLiteDatabase db) {
@@ -345,16 +343,18 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                 if (!onceToday(context, "bill_" + id + "_" + days)) {
                     continue;
                 }
+                if (!onceToday(context, "bills")) {
+                    return false;
+                }
                 String when = days == 0 ? "Dzisiaj" : (days == 1 ? "Jutro" : "Za " + days + " dni");
-                notify(context, recurring ? "Stały wydatek" : "Rachunek",
+                return notify(context, recurring ? "Stały wydatek" : "Rachunek",
                         when + ": " + description + " " + money(amount) + ".");
-                return true;
             }
         }
         return false;
     }
 
-    private static void refreshPersistentTasks(Context context, SQLiteDatabase db) {
+    private static boolean refreshPersistentTasks(Context context, SQLiteDatabase db) {
         List<String> tasks = new ArrayList<>();
         boolean hasBills = false;
         SharedPreferences p = prefs(context);
@@ -367,7 +367,10 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         }
         if (tasks.isEmpty()) {
             cancelNotification(context, TASKS_NOTIFICATION_ID);
-            return;
+            return false;
+        }
+        if (!onceToday(context, "task_summary")) {
+            return false;
         }
 
         int shown = Math.min(5, tasks.size());
@@ -381,7 +384,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String title = tasks.size() == 1
                 ? "Jedna rzecz do zrobienia"
                 : "Do zrobienia: " + tasks.size();
-        notifyTask(context, title, join(visible), hasBills ? "bills" : "debts");
+        return notifyTask(context, title, join(visible), hasBills ? "bills" : "debts");
     }
 
     private static boolean addBillTasks(SQLiteDatabase db, List<String> tasks) {
@@ -438,14 +441,13 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String end = addDays(start, 6);
         double spent = weeklySpent(db, start, end, cfg.categories);
         if (spent > cfg.amount && onceToday(context, "weekly_limit")) {
-            notify(context, "Limit tygodniowy", String.format(Locale.ROOT,
+            return notify(context, "Limit tygodniowy", String.format(Locale.ROOT,
                     nextVariant(context, "weekly_limit",
                             "Przekroczono limit tygodniowy o %s.",
                             "Ten tydzień wyszedł ponad limit: %s.",
                             "Budżet tygodniowy jest już przekroczony o %s.",
                             "Wydatki tygodnia są nad limitem o %s."),
                     money(spent - cfg.amount)), "home");
-            return true;
         }
         return false;
     }
@@ -464,23 +466,21 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                         String.valueOf(id), name);
                 double pct = target <= 0 ? 0 : collected / target * 100.0;
                 if (pct >= 100.0 && onceEver(context, "goal_done_" + id)) {
-                    notify(context, "Cel osiągnięty", String.format(Locale.ROOT,
+                    return notify(context, "Cel osiągnięty", String.format(Locale.ROOT,
                             nextVariant(context, "goal_done",
                                     "Cel \"%s\" został osiągnięty!",
                                     "\"%s\" jest już uzbierany.",
                                     "Cel zamknięty: \"%s\".",
                                     "Masz pełną kwotę na cel \"%s\"."),
                             name), "goals");
-                    return true;
                 } else if (pct >= 85.0 && pct < 100.0 && onceToday(context, "goal_close_" + id)) {
-                    notify(context, "Cel prawie gotowy", String.format(Locale.ROOT,
+                    return notify(context, "Cel prawie gotowy", String.format(Locale.ROOT,
                             nextVariant(context, "goal_close",
                                     "Brakuje jeszcze %d%% do celu \"%s\".",
                                     "Zostało około %d%% do celu \"%s\".",
                                     "Brakuje %d%% i cel \"%s\" będzie domknięty.",
                                     "Jeszcze %d%% i \"%s\" będzie gotowy."),
                             Math.round(100.0 - pct), name), "goals");
-                    return true;
                 }
             }
         }
@@ -523,8 +523,10 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                 } else if (days == 1) {
                     message = message.replace("Za 1 dni", "Jutro");
                 }
-                notify(context, title, message);
-                return true;
+                if (!onceToday(context, "debts")) {
+                    return false;
+                }
+                return notify(context, title, message);
             }
         }
         return false;
@@ -540,7 +542,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         }
         double count = scalar(db, "SELECT COUNT(*) FROM transactions WHERE date=? AND type='expense'", today());
         if (count < 1) {
-            notify(context, nextVariant(context, "daily_expense_title",
+            return notify(context, nextVariant(context, "daily_expense_title",
                     "Wydatki po 16:00",
                     "Dzienny przegląd",
                     "Kontrola wydatków",
@@ -550,7 +552,6 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                     "Brak dzisiejszych wydatków w aplikacji. Sprawdź, czy to się zgadza.",
                     "Jeśli były zakupy, paliwo albo jedzenie po drodze, dopisz je do budżetu.",
                     "Dzień jest pusty w wydatkach. Warto zrobić krótki przegląd."), "add");
-            return true;
         }
         return false;
     }
@@ -584,7 +585,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                     continue;
                 }
                 onceToday(context, "purchase_gap");
-                notify(context, nextVariant(context, "purchase_gap_title",
+                return notify(context, nextVariant(context, "purchase_gap_title",
                         "Dawno nie kupowane",
                         "Czy to nadal potrzebne?",
                         "Mała obserwacja",
@@ -596,7 +597,6 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                                 "\"%s\" wypadło z rytmu zakupów od %d dni.",
                                 "Nie kupowałeś \"%s\" od %d dni. Dobra chwila, żeby ocenić, czy dalej tego potrzebujesz."),
                         item, days), "transactions");
-                return true;
             }
         }
         return false;
@@ -607,12 +607,11 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             return false;
         }
         if (onceThisWeek(context, "weekly_backup")) {
-            notify(context, "Kopia zapasowa", nextVariant(context, "weekly_backup",
+            return notify(context, "Kopia zapasowa", nextVariant(context, "weekly_backup",
                     "Tygodniowa kopia danych jest do zrobienia.",
                     "Minął tydzień. Warto zrobić kopię zapasową budżetu.",
                     "Zrób cotygodniowy backup, zanim nazbiera się więcej zmian.",
                     "Krótka rutyna bezpieczeństwa: wykonaj kopię zapasową danych."), "settings");
-            return true;
         }
         return false;
     }
@@ -698,6 +697,9 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String pref = "notified_" + key;
         String today = today();
         SharedPreferences p = prefs(context);
+        if (!hasDailyNotificationSlot(context)) {
+            return false;
+        }
         if (today.equals(p.getString(pref, ""))) {
             return false;
         }
@@ -705,9 +707,35 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         return true;
     }
 
+    private static boolean hasDailyNotificationSlot(Context context) {
+        SharedPreferences p = prefs(context);
+        String today = today();
+        String date = p.getString("daily_notification_count_date", "");
+        int count = today.equals(date) ? p.getInt("daily_notification_count", 0) : 0;
+        return count < MAX_DAILY_NOTIFICATIONS;
+    }
+
+    private static boolean consumeDailyNotificationSlot(Context context) {
+        SharedPreferences p = prefs(context);
+        String today = today();
+        String date = p.getString("daily_notification_count_date", "");
+        int count = today.equals(date) ? p.getInt("daily_notification_count", 0) : 0;
+        if (count >= MAX_DAILY_NOTIFICATIONS) {
+            return false;
+        }
+        p.edit()
+                .putString("daily_notification_count_date", today)
+                .putInt("daily_notification_count", count + 1)
+                .apply();
+        return true;
+    }
+
     private static boolean onceEver(Context context, String key) {
         String pref = "notified_" + key;
         SharedPreferences p = prefs(context);
+        if (!hasDailyNotificationSlot(context)) {
+            return false;
+        }
         if (p.getBoolean(pref, false)) {
             return false;
         }
@@ -719,6 +747,9 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String pref = "notified_" + key;
         String week = weekStart(today());
         SharedPreferences p = prefs(context);
+        if (!hasDailyNotificationSlot(context)) {
+            return false;
+        }
         if (week.equals(p.getString(pref, ""))) {
             return false;
         }
@@ -730,6 +761,9 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String pref = "notified_" + key;
         String today = today();
         SharedPreferences p = prefs(context);
+        if (!hasDailyNotificationSlot(context)) {
+            return false;
+        }
         String last = p.getString(pref, "");
         if (!last.isEmpty() && daysBetween(calendar(last), calendar(today)) < days) {
             return false;
@@ -790,24 +824,27 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         }
     }
 
-    private static void notify(Context context, String title, String body) {
-        notify(context, title, body, null);
+    private static boolean notify(Context context, String title, String body) {
+        return notify(context, title, body, null);
     }
 
-    private static void notify(Context context, String title, String body, String screen) {
-        notifyInternal(context, title, body,
+    private static boolean notify(Context context, String title, String body, String screen) {
+        return notifyInternal(context, title, body,
                 (int) (System.currentTimeMillis() & 0xfffffff), false, false, screen, null);
     }
 
-    private static void notifyTask(Context context, String title, String body, String screen) {
-        notifyInternal(context, title, body, TASKS_NOTIFICATION_ID, true, true, screen, "Otwórz");
+    private static boolean notifyTask(Context context, String title, String body, String screen) {
+        return notifyInternal(context, title, body, TASKS_NOTIFICATION_ID, false, false, screen, "Otwórz");
     }
 
-    private static void notifyInternal(Context context, String title, String body, int notificationId,
+    private static boolean notifyInternal(Context context, String title, String body, int notificationId,
                                        boolean ongoing, boolean onlyAlertOnce, String screen, String actionLabel) {
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) {
-            return;
+            return false;
+        }
+        if (!consumeDailyNotificationSlot(context)) {
+            return false;
         }
         PendingIntent content = openActivityIntent(context, screen, REQUEST_OPEN_BASE + Math.abs(notificationId % 1000));
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
@@ -828,6 +865,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             builder.addAction(R.drawable.ic_notification, actionLabel, content);
         }
         manager.notify(notificationId, builder.build());
+        return true;
     }
 
     private static PendingIntent openActivityIntent(Context context, String screen, int requestCode) {

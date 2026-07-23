@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
 
         if (action == MotionEvent.ACTION_MOVE) {
             if (touchMode == 0) {
-                if (absX > Math.max(dp(34), slop * 2) && absX > absY * 1.35f) {
+                if (absX > Math.max(dp(22), slop * 1.35f) && absX > absY * 1.15f) {
                     touchMode = 1;
                     scroll.requestDisallowInterceptTouchEvent(true);
                 } else if (touchAllowsPullRefresh
@@ -659,8 +659,8 @@ public class MainActivity extends Activity {
         boolean atStart = idx == 0 && dx > 0;
         boolean atEnd = idx == SCREEN_ORDER.length - 1 && dx < 0;
         float width = Math.max(1.0f, scroll == null ? 1.0f : scroll.getWidth());
-        float maxDrag = (atStart || atEnd) ? dp(54) : width * 0.34f;
-        float resistance = (atStart || atEnd) ? 0.24f : 0.64f;
+        float maxDrag = (atStart || atEnd) ? dp(62) : width * 0.42f;
+        float resistance = (atStart || atEnd) ? 0.30f : 0.78f;
         float drag = Math.min(Math.abs(dx) * resistance, maxDrag);
         View page = scroll != null ? scroll : content;
         page.setTranslationX(Math.copySign(drag, dx));
@@ -675,7 +675,7 @@ public class MainActivity extends Activity {
         int direction = dx < 0 ? 1 : -1;
         int idx = currentScreenIndex();
         int next = Math.max(0, Math.min(SCREEN_ORDER.length - 1, idx + direction));
-        float threshold = Math.min(dp(112), Math.max(dp(84), width * 0.18f));
+        float threshold = Math.min(dp(82), Math.max(dp(52), width * 0.12f));
         if (next != idx && Math.abs(dx) >= threshold) {
             showScreenWithSlide(SCREEN_ORDER[next], direction);
         } else {

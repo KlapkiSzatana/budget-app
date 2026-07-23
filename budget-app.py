@@ -70,6 +70,8 @@ class SyncWorker(QObject):
             self.failed.emit(str(error) or error.__class__.__name__)
 
 class BudgetApp(QMainWindow):
+    remote_sync_received = Signal(dict)
+
     def __init__(self):
         super().__init__()
         self.setWindowIcon(QIcon(icon_path))
@@ -89,6 +91,9 @@ class BudgetApp(QMainWindow):
         self.current_account_history_dialog = None
         self._loading_transactions = False
         self._pending_refresh = False
+        self._footer_notice_token = 0
+        self._footer_notice_restore_widget = None
+        self.remote_sync_received.connect(self._remote_sync_received)
 
         now = datetime.now()
         self.current_month = now.month
@@ -422,9 +427,31 @@ class BudgetApp(QMainWindow):
         if self.sync_server and self.sync_server.is_running():
             return self.sync_server
         from budget_sync import BudgetSyncServer
-        self.sync_server = BudgetSyncServer(self.db)
+        self.sync_server = BudgetSyncServer(self.db, on_sync=self._emit_remote_sync_received)
         self.sync_server.start()
         return self.sync_server
+
+    def _emit_remote_sync_received(self, event):
+        self.remote_sync_received.emit(event if isinstance(event, dict) else {})
+
+    def _remote_sync_received(self, event):
+        imported = event.get("imported", {}) if isinstance(event, dict) else {}
+        attachments = event.get("attachments", {}) if isinstance(event, dict) else {}
+        inserted = int(imported.get("inserted", 0) or 0)
+        updated = int(imported.get("updated", 0) or 0)
+        deleted = int(imported.get("deleted", 0) or 0)
+        downloaded = int(attachments.get("downloaded", 0) or 0)
+
+        self.schedule_update()
+        message = _("Synchronizacja z Androida odebrana. Odświeżono dane.")
+        if inserted or updated or deleted or downloaded:
+            message += " " + _("Zmiany: +{inserted}, aktualizacje: {updated}, usunięto: {deleted}, załączniki: +{attachments}").format(
+                inserted=inserted,
+                updated=updated,
+                deleted=deleted,
+                attachments=downloaded,
+            )
+        self.show_footer_notice(message, 8000)
 
     def confirm_sync(self):
         answer = QMessageBox.question(
@@ -1507,10 +1534,25 @@ class BudgetApp(QMainWindow):
 
         self.tips_label.setAlignment(Qt.AlignCenter)
 
+        self.sync_footer_label = QLabel()
+        self.sync_footer_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #2980b9;
+                padding: 3px 12px;
+                border: 1px solid #3498db;
+                border-radius: 6px;
+                background-color: rgba(52, 152, 219, 0.08);
+            }
+        """)
+        self.sync_footer_label.setAlignment(Qt.AlignCenter)
+
         self.footer_stack = QStackedWidget()
 
         self.footer_stack.addWidget(self.tips_label)
         self.footer_stack.addWidget(self.filter_summary_label)
+        self.footer_stack.addWidget(self.sync_footer_label)
 
         self.remaining_tips = self.tips_pool.copy()
 
@@ -1554,6 +1596,33 @@ class BudgetApp(QMainWindow):
         self.main_layout.addWidget(footer_widget)
 
         self.footer_stack.setCurrentWidget(self.tips_label)
+
+    def show_footer_notice(self, message, duration_ms=8000):
+        if not hasattr(self, "footer_stack") or not hasattr(self, "sync_footer_label"):
+            return
+        self._footer_notice_token += 1
+        token = self._footer_notice_token
+        previous = self.footer_stack.currentWidget()
+        if previous is self.sync_footer_label:
+            previous = self._footer_notice_restore_widget or self.tips_label
+        self._footer_notice_restore_widget = previous
+        self.sync_footer_label.setText(str(message or ""))
+        self.footer_stack.setCurrentWidget(self.sync_footer_label)
+
+        def restore_footer():
+            if token != self._footer_notice_token:
+                return
+            if self.footer_stack.currentWidget() != self.sync_footer_label:
+                return
+            restore_widget = self._footer_notice_restore_widget
+            self._footer_notice_restore_widget = None
+            if restore_widget is self.filter_summary_label and self.filter_summary_label.text().strip():
+                self.footer_stack.setCurrentWidget(self.filter_summary_label)
+            else:
+                self.rotate_tip()
+                self.footer_stack.setCurrentWidget(self.tips_label)
+
+        QTimer.singleShot(duration_ms, restore_footer)
 
     def get_current_month_str(self):
         return f"{self.current_year}-{self.current_month:02d}"
@@ -2263,10 +2332,12 @@ class BudgetApp(QMainWindow):
                     summary_parts.append(f"<b>{_('Bilans')}: <span style='color:{diff_col};'>{f_diff:.2f}</span></b>")
 
                 self.filter_summary_label.setText(" | ".join(summary_parts))
-                self.footer_stack.setCurrentWidget(self.filter_summary_label)
+                if self.footer_stack.currentWidget() != self.sync_footer_label:
+                    self.footer_stack.setCurrentWidget(self.filter_summary_label)
             else:
-                self.rotate_tip()
-                self.footer_stack.setCurrentWidget(self.tips_label)
+                if self.footer_stack.currentWidget() != self.sync_footer_label:
+                    self.rotate_tip()
+                    self.footer_stack.setCurrentWidget(self.tips_label)
         finally:
             self.table.blockSignals(False)
             self.table.setUpdatesEnabled(True)

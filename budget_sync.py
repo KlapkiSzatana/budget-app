@@ -14,10 +14,11 @@ MAX_SYNC_ATTACHMENT_BYTES = 512 * 1024 * 1024
 
 
 class BudgetSyncServer:
-    def __init__(self, db, host="0.0.0.0", port=8765):
+    def __init__(self, db, host="0.0.0.0", port=8765, on_sync=None):
         self.db = db
         self.host = host
         self.port = port
+        self.on_sync = on_sync
         self.httpd = None
         self.thread = None
         self.lock = threading.RLock()
@@ -106,6 +107,7 @@ class BudgetSyncServer:
                     payload["ok"] = True
                     payload["imported"] = imported
                     self._send_json(200, payload)
+                    outer._notify_sync_received(imported, attachments, self.client_address)
                 except Exception as exc:
                     self._send_json(500, {"ok": False, "error": str(exc)})
 
@@ -126,6 +128,18 @@ class BudgetSyncServer:
 
     def urls(self):
         return [f"http://{ip}:{self.port}" for ip in local_ipv4_addresses()]
+
+    def _notify_sync_received(self, imported, attachments, client_address=None):
+        if not self.on_sync:
+            return
+        try:
+            self.on_sync({
+                "imported": imported or {},
+                "attachments": attachments or {},
+                "client": client_address[0] if client_address else "",
+            })
+        except Exception:
+            pass
 
 
 def local_ipv4_addresses():
