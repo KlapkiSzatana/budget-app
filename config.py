@@ -6,7 +6,7 @@ import atexit
 import tempfile
 import time
 
-WERSJA = "1.3.6"
+WERSJA = "1.3.8"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"

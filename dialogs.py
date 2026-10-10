@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QDialogButtonBox, QRadioButton, QButtonGroup,
                                QProgressBar, QTextEdit, QSpinBox, QFrame, QWidget,
                                QCheckBox, QListWidget, QListWidgetItem, QAbstractItemView,
-                               QTableWidget, QTableWidgetItem, QHeaderView, QCompleter)
+                               QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox)
 from PySide6.QtCore import Qt, QDate, QObject, QEvent, QTimer
 from PySide6.QtGui import QTextCursor
 from config import _, CASH_SAVINGS_NAME, MONTH_NAME
@@ -22,6 +22,39 @@ def space_button_box(button_box, spacing=12):
     if layout:
         layout.setSpacing(spacing)
 
+_COMPLETION_SEPARATORS = " \t\r\n,;:()[]{}"
+
+def _completion_words(text):
+    words = []
+    current = []
+    for char in str(text or ""):
+        if char in _COMPLETION_SEPARATORS:
+            if current:
+                words.append("".join(current))
+                current = []
+        else:
+            current.append(char)
+    if current:
+        words.append("".join(current))
+    return words
+
+def _completion_word_for_prefix(completion, prefix):
+    prefix_lower = str(prefix or "").lower()
+    if prefix_lower:
+        for word in _completion_words(completion):
+            if word.lower().startswith(prefix_lower):
+                return word
+    return str(completion or "").strip()
+
+def _token_bounds(text, cursor_pos):
+    start = max(0, min(cursor_pos, len(text)))
+    end = start
+    while start > 0 and text[start - 1] not in _COMPLETION_SEPARATORS:
+        start -= 1
+    while end < len(text) and text[end] not in _COMPLETION_SEPARATORS:
+        end += 1
+    return start, end
+
 def install_autocomplete(widget, suggestions):
     values = sorted({str(v).strip() for v in (suggestions or []) if str(v).strip()}, key=lambda x: x.lower())
     if not values:
@@ -31,12 +64,153 @@ def install_autocomplete(widget, suggestions):
     if not isinstance(target, QLineEdit) or target.validator() is not None or target.isReadOnly():
         return
 
-    completer = QCompleter(values, target)
-    completer.setCaseSensitivity(Qt.CaseInsensitive)
-    completer.setFilterMode(Qt.MatchContains)
-    completer.setCompletionMode(QCompleter.PopupCompletion)
-    target.setCompleter(completer)
-    target._budget_completer = completer
+    target._budget_line_completer = LineEditCompleter(target, values)
+
+class LineEditCompleter(QObject):
+    def __init__(self, line_edit, suggestions):
+        super().__init__(line_edit)
+        self.line_edit = line_edit
+        self.suggestions = sorted({str(v).strip() for v in suggestions or [] if str(v).strip()}, key=lambda x: x.lower())
+        self.popup = QListWidget(line_edit)
+        self.popup.setWindowFlags(Qt.ToolTip)
+        self.popup.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.popup.setFocusPolicy(Qt.NoFocus)
+        self.popup.setUniformItemSizes(True)
+        self.popup.setMaximumHeight(180)
+        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text()))
+        self._inserting = False
+        self._pending_popup = False
+        line_edit.installEventFilter(self)
+        line_edit.textEdited.connect(self.schedule_popup)
+        line_edit.cursorPositionChanged.connect(lambda _old, _new: self.schedule_popup())
+
+    def eventFilter(self, obj, event):
+        if obj is self.line_edit and event.type() == QEvent.KeyPress:
+            if self.popup.isVisible():
+                key = event.key()
+                if key in (Qt.Key_Return, Qt.Key_Enter):
+                    current = self.popup.currentItem()
+                    if current:
+                        self.insert_completion(current.text())
+                        return True
+                if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    self.popup.hide()
+                    return False
+                if key == Qt.Key_Escape:
+                    self.popup.hide()
+                    return True
+                if key in (Qt.Key_Down, Qt.Key_Up):
+                    self.move_selection(1 if key == Qt.Key_Down else -1)
+                    return True
+        elif obj is self.line_edit and event.type() == QEvent.FocusOut:
+            self.popup.hide()
+        return super().eventFilter(obj, event)
+
+    def current_prefix(self):
+        text = self.line_edit.text()
+        cursor = self.line_edit.cursorPosition()
+        start, end = _token_bounds(text, cursor)
+        return text[start:cursor], start, end
+
+    def schedule_popup(self):
+        if self._inserting or self._pending_popup:
+            return
+        self._pending_popup = True
+        QTimer.singleShot(0, self.update_popup)
+
+    def update_popup(self):
+        self._pending_popup = False
+        if self._inserting:
+            return
+        if shiboken is not None:
+            if not shiboken.isValid(self.line_edit) or not shiboken.isValid(self.popup):
+                return
+        if not self.line_edit.isVisible() or self.line_edit.isReadOnly():
+            self.popup.hide()
+            return
+
+        prefix, _start, _end = self.current_prefix()
+        if len(prefix.strip()) < 1:
+            self.popup.hide()
+            return
+
+        text = self.line_edit.text()
+        cursor = self.line_edit.cursorPosition()
+        field_prefix = text[:cursor].lstrip()
+        field_lower = field_prefix.lower()
+        prefix_lower = prefix.lower()
+
+        full_starts = [
+            value for value in self.suggestions
+            if field_lower and value.lower().startswith(field_lower) and value.lower() != field_lower
+        ]
+        word_starts = [
+            value for value in self.suggestions
+            if value not in full_starts and any(word.lower().startswith(prefix_lower) for word in _completion_words(value))
+        ]
+        contains = [
+            value for value in self.suggestions
+            if value not in full_starts and value not in word_starts and prefix_lower in value.lower()
+        ]
+        matches = (full_starts + word_starts + contains)[:30]
+        if not matches:
+            self.popup.hide()
+            return
+
+        self.popup.clear()
+        self.popup.addItems(matches)
+        self.popup.setCurrentRow(0)
+        width = max(220, self.popup.sizeHintForColumn(0) + self.popup.verticalScrollBar().sizeHint().width() + 20)
+        row_height = max(24, self.popup.sizeHintForRow(0))
+        height = min(180, row_height * min(len(matches), 7) + 6)
+        self.popup.resize(width, height)
+        self.popup.move(self.line_edit.mapToGlobal(self.line_edit.rect().bottomLeft()))
+        self.popup.show()
+        self.popup.raise_()
+
+    def move_selection(self, offset):
+        count = self.popup.count()
+        if count <= 0:
+            return
+        row = self.popup.currentRow()
+        if row < 0:
+            row = 0
+        self.popup.setCurrentRow(max(0, min(count - 1, row + offset)))
+
+    def insert_completion(self, completion):
+        completion = str(completion or "").strip()
+        if not completion:
+            return
+        if shiboken is not None:
+            if not shiboken.isValid(self.line_edit) or not shiboken.isValid(self.popup):
+                return
+        self._inserting = True
+        try:
+            text = self.line_edit.text()
+            cursor = self.line_edit.cursorPosition()
+            prefix, start, end = self.current_prefix()
+            before_cursor = text[:cursor]
+            stripped_before = before_cursor.lstrip()
+            leading_spaces = len(before_cursor) - len(stripped_before)
+
+            if stripped_before and completion.lower().startswith(stripped_before.lower()):
+                start = leading_spaces
+                end = cursor
+                insert_text = completion
+            else:
+                insert_text = _completion_word_for_prefix(completion, prefix)
+
+            self.line_edit.setText(text[:start] + insert_text + text[end:])
+            self.line_edit.setCursorPosition(start + len(insert_text))
+            self.popup.hide()
+        finally:
+            self._inserting = False
+
+    def hide_popup(self):
+        if self.popup.isVisible():
+            self.popup.hide()
+            return True
+        return False
 
 class TextEditCompleter(QObject):
     def __init__(self, editor, suggestions):
@@ -68,11 +242,14 @@ class TextEditCompleter(QObject):
         if obj is self.editor and event.type() == QEvent.KeyPress:
             if self.popup.isVisible():
                 key = event.key()
-                if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+                if key in (Qt.Key_Return, Qt.Key_Enter):
                     current = self.popup.currentItem()
                     if current:
                         self.insert_completion(current.text(), add_newline=key in (Qt.Key_Return, Qt.Key_Enter))
                         return True
+                if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    self.popup.hide()
+                    return False
                 if key == Qt.Key_Escape:
                     self.popup.hide()
                     return True
@@ -108,8 +285,15 @@ class TextEditCompleter(QObject):
             return
         prefix_lower = prefix.lower()
         starts = [value for value in self.suggestions if value.lower().startswith(prefix_lower)]
-        contains = [value for value in self.suggestions if prefix_lower in value.lower() and value not in starts]
-        matches = (starts + contains)[:30]
+        word_starts = [
+            value for value in self.suggestions
+            if value not in starts and any(word.lower().startswith(prefix_lower) for word in _completion_words(value))
+        ]
+        contains = [
+            value for value in self.suggestions
+            if value not in starts and value not in word_starts and prefix_lower in value.lower()
+        ]
+        matches = (starts + word_starts + contains)[:30]
         if not matches:
             self.popup.hide()
             return
@@ -145,14 +329,71 @@ class TextEditCompleter(QObject):
         self._inserting = True
         try:
             cursor = self.editor.textCursor()
-            cursor.select(QTextCursor.WordUnderCursor)
-            cursor.insertText(completion)
+            prefix = self.current_prefix()
+            line_prefix = cursor.block().text()[:cursor.positionInBlock()]
+            stripped_line = line_prefix.lstrip()
+            if stripped_line and completion.lower().startswith(stripped_line.lower()):
+                original_pos = cursor.position()
+                start_pos = original_pos - len(line_prefix) + (len(line_prefix) - len(stripped_line))
+                cursor.setPosition(start_pos)
+                cursor.setPosition(original_pos, QTextCursor.KeepAnchor)
+                cursor.insertText(completion)
+            else:
+                cursor.select(QTextCursor.WordUnderCursor)
+                cursor.insertText(_completion_word_for_prefix(completion, prefix))
             if add_newline:
                 cursor.insertBlock()
             self.editor.setTextCursor(cursor)
             self.popup.hide()
         finally:
             self._inserting = False
+
+    def hide_popup(self):
+        if self.popup.isVisible():
+            self.popup.hide()
+            return True
+        return False
+
+class DialogEscapeConfirmFilter(QObject):
+    def __init__(self, dialog):
+        super().__init__(dialog)
+        self.dialog = dialog
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
+            if self._hide_visible_autocomplete():
+                return True
+            answer = QMessageBox.question(
+                self.dialog,
+                _("Anuluj"),
+                _("Czy na pewno chcesz zrezygnować?"),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer == QMessageBox.Yes:
+                self.dialog.reject()
+            return True
+        return super().eventFilter(obj, event)
+
+    def _hide_visible_autocomplete(self):
+        for edit in self.dialog.findChildren(QLineEdit):
+            completer = getattr(edit, "_budget_line_completer", None)
+            if completer is not None and completer.hide_popup():
+                return True
+        for edit in self.dialog.findChildren(QTextEdit):
+            completer = getattr(edit, "_budget_text_completer", None)
+            if completer is not None and completer.hide_popup():
+                return True
+        return False
+
+def install_escape_confirm(dialog):
+    if getattr(dialog, "_budget_escape_confirm_installed", False):
+        return
+    dialog._budget_escape_confirm_filter = DialogEscapeConfirmFilter(dialog)
+    dialog.installEventFilter(dialog._budget_escape_confirm_filter)
+    for child in dialog.findChildren(QWidget):
+        child.installEventFilter(dialog._budget_escape_confirm_filter)
+    dialog._budget_escape_confirm_installed = True
 
 def install_textedit_autocomplete(widget, suggestions):
     values = [str(v).strip() for v in (suggestions or []) if str(v).strip()]
@@ -208,6 +449,7 @@ def _autocomplete_kind(dialog, widget):
     return "description"
 
 def install_dialog_autocomplete(dialog, db):
+    install_escape_confirm(dialog)
     if not db or not hasattr(db, "get_text_suggestions"):
         return
     combo_line_edits = set()

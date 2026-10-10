@@ -131,11 +131,18 @@ class DatabaseManager:
             ("debtors", "attachment", "TEXT"),
             ("debtors", "sync_id", "TEXT"),
             ("debtors", "updated_at", "TEXT"),
+            ("month_locks", "is_locked", "INTEGER DEFAULT 1"),
+            ("month_locks", "updated_at", "TEXT"),
         ]
         for table, col, col_def in migrations:
             try:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}")
             except: pass
+        self.conn.execute("UPDATE month_locks SET is_locked=1 WHERE is_locked IS NULL")
+        self.conn.execute(
+            "UPDATE month_locks SET updated_at=? WHERE updated_at IS NULL OR TRIM(updated_at)=''",
+            (self.sync_timestamp(),)
+        )
 
         # --- NAPRAWA STARYCH POWIĄZAŃ (OPCJA A) ---
         self.conn.execute("""
@@ -784,6 +791,18 @@ class DatabaseManager:
         ]
         categories = self.get_categories()
         people = self.get_people()
+        month_locks = [
+            {
+                "month": row[0],
+                "is_locked": int(row[1] if row[1] is not None else 1),
+                "updated_at": row[2] or "",
+            }
+            for row in self.conn.execute("""
+                SELECT month_str, IFNULL(is_locked,1), IFNULL(updated_at,'')
+                FROM month_locks
+                ORDER BY month_str
+            """).fetchall()
+        ]
 
         liabilities = self._export_sync_debts("liabilities")
         debtors = self._export_sync_debts("debtors")
@@ -895,6 +914,7 @@ class DatabaseManager:
             "accounts": accounts,
             "categories": categories,
             "people": people,
+            "month_locks": month_locks,
             "liabilities": liabilities,
             "debtors": debtors,
             "transactions": transactions,
@@ -928,6 +948,13 @@ class DatabaseManager:
             for person in payload.get("people", []):
                 if person:
                     self.conn.execute("INSERT OR IGNORE INTO people VALUES (?)", (str(person),))
+
+            for item in payload.get("month_locks", []):
+                change = self._import_sync_month_lock(item)
+                if change == "inserted":
+                    inserted += 1
+                elif change == "updated":
+                    updated += 1
 
             for item in payload.get("deletions", []):
                 change = self._import_sync_deletion(item)
@@ -999,6 +1026,35 @@ class DatabaseManager:
             self.conn.rollback()
             raise
         return {"inserted": inserted, "updated": updated, "deleted": deleted}
+
+    def _import_sync_month_lock(self, item):
+        if not isinstance(item, dict):
+            return None
+        month = str(item.get("month") or item.get("month_str") or "").strip()
+        if len(month) != 7 or month[4] != "-":
+            return None
+        remote_updated = str(item.get("updated_at") or self.sync_timestamp()).strip()
+        raw_locked = item.get("is_locked", item.get("locked", 1))
+        if isinstance(raw_locked, str):
+            locked = 0 if raw_locked.strip().lower() in ("0", "false", "no", "nie") else 1
+        else:
+            locked = 1 if raw_locked else 0
+
+        existing = self.conn.execute(
+            "SELECT IFNULL(updated_at,'') FROM month_locks WHERE month_str=?",
+            (month,)
+        ).fetchone()
+        if existing and existing[0] >= remote_updated:
+            return None
+
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO month_locks (month_str, is_locked, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (month, locked, remote_updated)
+        )
+        return "updated" if existing else "inserted"
 
     def _ensure_account_by_name(self, name, initial=0.0, color="#7f8c8d"):
         safe_name = str(name or "Gotówka").strip() or "Gotówka"
@@ -1863,15 +1919,30 @@ class DatabaseManager:
         return list(set(l1 + l2))
 
     def is_month_locked(self, month_str):
-        return self.conn.execute("SELECT 1 FROM month_locks WHERE month_str=?", (month_str,)).fetchone() is not None
+        return self.conn.execute(
+            "SELECT 1 FROM month_locks WHERE month_str=? AND IFNULL(is_locked,1)=1",
+            (month_str,)
+        ).fetchone() is not None
 
     def lock_month(self, month_str):
-        self.conn.execute("INSERT OR IGNORE INTO month_locks VALUES (?)", (month_str,))
+        self._set_month_lock(month_str, True)
         self.conn.commit()
 
     def unlock_month(self, month_str):
-        self.conn.execute("DELETE FROM month_locks WHERE month_str=?", (month_str,))
+        self._set_month_lock(month_str, False)
         self.conn.commit()
+
+    def _set_month_lock(self, month_str, locked):
+        safe_month = str(month_str or "").strip()
+        if not safe_month:
+            return
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO month_locks (month_str, is_locked, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (safe_month, 1 if locked else 0, self.sync_timestamp())
+        )
 
     def get_total_savings_cash_pln(self, account_id=None):
         """

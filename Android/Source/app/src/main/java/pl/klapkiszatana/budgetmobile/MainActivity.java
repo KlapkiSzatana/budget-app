@@ -160,6 +160,7 @@ public class MainActivity extends Activity {
     private float touchDownY;
     private int touchMode;
     private boolean touchAllowsPullRefresh;
+    private boolean touchAllowsHorizontalSwipe;
 
     private Spinner txTypeSpinner;
     private Spinner txAccountSpinner;
@@ -587,6 +588,7 @@ public class MainActivity extends Activity {
             touchDownY = event.getY();
             touchMode = 0;
             touchAllowsPullRefresh = canStartPullRefresh(event);
+            touchAllowsHorizontalSwipe = canStartHorizontalSwipe(event);
             content.animate().cancel();
             root.animate().cancel();
             if (refreshIndicator != null) {
@@ -603,7 +605,9 @@ public class MainActivity extends Activity {
 
         if (action == MotionEvent.ACTION_MOVE) {
             if (touchMode == 0) {
-                if (absX > Math.max(dp(22), slop * 1.35f) && absX > absY * 1.15f) {
+                if (touchAllowsHorizontalSwipe
+                        && absX > Math.max(dp(44), slop * 3.2f)
+                        && absX > absY * 2.05f) {
                     touchMode = 1;
                     scroll.requestDisallowInterceptTouchEvent(true);
                 } else if (touchAllowsPullRefresh
@@ -654,6 +658,33 @@ public class MainActivity extends Activity {
         return event.getY() <= Math.max(dp(180), scroll.getHeight() * 0.32f);
     }
 
+    private boolean canStartHorizontalSwipe(MotionEvent event) {
+        View focused = getCurrentFocus();
+        if (focused instanceof EditText) {
+            return false;
+        }
+        return !isTouchInsideEditable(root, event);
+    }
+
+    private boolean isTouchInsideEditable(View view, MotionEvent event) {
+        if (view == null || event == null || !view.isShown()) {
+            return false;
+        }
+        if (view instanceof EditText) {
+            return isTouchInsideView(view, event);
+        }
+        if (!(view instanceof ViewGroup)) {
+            return false;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (isTouchInsideEditable(group.getChildAt(i), event)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void updateHorizontalDrag(float dx) {
         int idx = currentScreenIndex();
         boolean atStart = idx == 0 && dx > 0;
@@ -675,7 +706,7 @@ public class MainActivity extends Activity {
         int direction = dx < 0 ? 1 : -1;
         int idx = currentScreenIndex();
         int next = Math.max(0, Math.min(SCREEN_ORDER.length - 1, idx + direction));
-        float threshold = Math.min(dp(82), Math.max(dp(52), width * 0.12f));
+        float threshold = Math.min(dp(110), Math.max(dp(74), width * 0.18f));
         if (next != idx && Math.abs(dx) >= threshold) {
             showScreenWithSlide(SCREEN_ORDER[next], direction);
         } else {
@@ -1599,7 +1630,8 @@ public class MainActivity extends Activity {
                 card.addView(details);
             }
             LinearLayout buttons = hbox();
-            buttons.addView(actionButton("Edytuj", BLUE, v -> showEditTransactionDialog(tx)),
+            boolean locked = isTransactionMonthLocked(tx);
+            buttons.addView(actionButton(locked ? "Podgląd" : "Edytuj", BLUE, v -> showEditTransactionDialog(tx)),
                     new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
             buttons.addView(actionButton("Usuń", RED, v -> confirmDeleteTransaction(tx)),
                     new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -1624,6 +1656,7 @@ public class MainActivity extends Activity {
     private void showEditTransactionDialog(Tx tx) {
         pendingEditAttachment = null;
         pendingEditHadAttachment = tx.hasAttachment;
+        boolean locked = isTransactionMonthLocked(tx);
         LinearLayout form = vbox();
         form.setPadding(dp(16), dp(8), dp(16), 0);
         EditText date = input("Data", tx.date);
@@ -1646,15 +1679,35 @@ public class MainActivity extends Activity {
         form.addView(label("Szczegóły")); form.addView(details);
         form.addView(label("Załącznik"));
         form.addView(pendingEditAttachmentText);
-        form.addView(actionButton(tx.hasAttachment ? "Zmień załącznik" : "Dodaj załącznik", GREEN, v -> chooseEditAttachment()));
+        Button attachmentButton = actionButton(tx.hasAttachment ? "Zmień załącznik" : "Dodaj załącznik", GREEN, v -> chooseEditAttachment());
+        form.addView(attachmentButton);
+        if (locked) {
+            TextView lockInfo = text("Miesiąc zamknięty - podgląd bez edycji", 13, ORANGE, true);
+            lockInfo.setPadding(0, dp(8), 0, 0);
+            form.addView(lockInfo);
+            date.setEnabled(false);
+            account.setEnabled(false);
+            category.setEnabled(false);
+            sub.setEnabled(false);
+            amount.setEnabled(false);
+            details.setEnabled(false);
+            attachmentButton.setEnabled(false);
+        }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Edytuj transakcję")
-                .setView(form)
-                .setPositiveButton("Zapisz", (dlg, which) -> {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(locked ? "Podgląd transakcji" : "Edytuj transakcję")
+                .setView(form);
+        if (locked) {
+            builder.setPositiveButton("OK", null);
+        } else {
+            builder.setPositiveButton("Zapisz", (dlg, which) -> {
                     String d = date.getText().toString().trim();
                     if (!isDate(d)) {
                         toast("Niepoprawna data");
+                        return;
+                    }
+                    if (db.isMonthLocked(d.substring(0, 7))) {
+                        toast("Ten miesiąc jest zamknięty");
                         return;
                     }
                     double amt = parseAmount(amount.getText().toString());
@@ -1664,9 +1717,12 @@ public class MainActivity extends Activity {
                             pendingEditAttachment == null ? null : pendingEditAttachment.data);
                     pendingEditAttachment = null;
                     buildTransactionsRefresh();
-                })
-                .setNegativeButton("Anuluj", null)
-                .create();
+                });
+        }
+        if (!locked) {
+            builder.setNegativeButton("Anuluj", null);
+        }
+        AlertDialog dialog = builder.create();
         dialog.setOnDismissListener(d -> {
             pendingEditAttachment = null;
             pendingEditAttachmentText = null;
@@ -1675,7 +1731,15 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private boolean isTransactionMonthLocked(Tx tx) {
+        return tx != null && tx.date != null && tx.date.length() >= 7 && db.isMonthLocked(tx.date.substring(0, 7));
+    }
+
     private void confirmDeleteTransaction(Tx tx) {
+        if (isTransactionMonthLocked(tx)) {
+            toast("Ten miesiąc jest zamknięty");
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle("Usuń transakcję")
                 .setMessage(tx.date + "\n" + tx.category + " / " + tx.subcategory + "\n" + money(tx.amount))
@@ -2874,8 +2938,7 @@ public class MainActivity extends Activity {
                 imported.attachmentsDownloaded = attachmentSync.attachmentsDownloaded;
                 imported.attachmentErrors = attachmentSync.attachmentErrors;
                 runOnUiThread(() -> {
-                    showScreen(currentScreen);
-                    toast("Zaktualizowano dane");
+                    refreshAfterSync();
                 });
             } catch (Exception ex) {
                 runOnUiThread(() -> toast("Sync nieudany: " + syncErrorMessage(ex)));
@@ -3079,8 +3142,7 @@ public class MainActivity extends Activity {
                 response.put("ok", true);
                 response.put("imported", importedJson);
                 runOnUiThread(() -> {
-                    showScreen(currentScreen);
-                    toast("Zaktualizowano dane");
+                    refreshAfterSync();
                 });
             } else {
                 code = 404;
@@ -3800,6 +3862,23 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean moveToNextUnlockedMonth() {
+        boolean moved = false;
+        int guard = 0;
+        while (db != null && db.isMonthLocked(monthPrefix()) && guard < 120) {
+            changeMonth(1);
+            moved = true;
+            guard++;
+        }
+        return moved;
+    }
+
+    private void refreshAfterSync() {
+        boolean moved = moveToNextUnlockedMonth();
+        showScreen(currentScreen);
+        toast(moved ? "Zaktualizowano dane. Przełączono na następny otwarty miesiąc" : "Zaktualizowano dane");
+    }
+
     private String monthPrefix() {
         return String.format(Locale.ROOT, "%04d-%02d", currentYear, currentMonth);
     }
@@ -4408,6 +4487,12 @@ public class MainActivity extends Activity {
             migrate("pending_bills", "ref_id", "INTEGER");
             migrate("pending_bills", "sync_id", "TEXT");
             migrate("pending_bills", "updated_at", "TEXT");
+            migrate("month_locks", "is_locked", "INTEGER DEFAULT 1");
+            migrate("month_locks", "updated_at", "TEXT");
+            conn.execSQL("UPDATE month_locks SET is_locked=1 WHERE is_locked IS NULL");
+            ContentValues lockTimestamp = new ContentValues();
+            lockTimestamp.put("updated_at", timestamp());
+            conn.update("month_locks", lockTimestamp, "updated_at IS NULL OR TRIM(updated_at)=''", null);
 
             // =================================================================================
             // --- NOWE: AUTOMATYCZNE GENEROWANIE METADANYCH SYNCHRONIZACJI (ANDROID) ---
@@ -5004,6 +5089,21 @@ public class MainActivity extends Activity {
             return out;
         }
 
+        JSONArray exportMonthLocks() throws JSONException {
+            JSONArray out = new JSONArray();
+            try (Cursor c = conn.rawQuery("SELECT month_str, IFNULL(is_locked,1), IFNULL(updated_at,'') " +
+                    "FROM month_locks ORDER BY month_str", null)) {
+                while (c.moveToNext()) {
+                    JSONObject item = new JSONObject();
+                    item.put("month", str(c, 0));
+                    item.put("is_locked", c.getInt(1));
+                    item.put("updated_at", str(c, 2));
+                    out.put(item);
+                }
+            }
+            return out;
+        }
+
         JSONObject exportSyncPayload() throws JSONException {
             ensureTransactionSyncMetadata();
             ensureAuxSyncMetadata();
@@ -5030,6 +5130,7 @@ public class MainActivity extends Activity {
                 people.put(person);
             }
             payload.put("people", people);
+            payload.put("month_locks", exportMonthLocks());
 
             payload.put("liabilities", exportDebts("liabilities"));
             payload.put("debtors", exportDebts("debtors"));
@@ -5149,6 +5250,18 @@ public class MainActivity extends Activity {
             if (people != null) {
                 for (int i = 0; i < people.length(); i++) {
                     addPerson(people.optString(i));
+                }
+            }
+
+            JSONArray monthLocks = payload.optJSONArray("month_locks");
+            if (monthLocks != null) {
+                for (int i = 0; i < monthLocks.length(); i++) {
+                    int change = importRemoteMonthLock(monthLocks.optJSONObject(i));
+                    if (change == 1) {
+                        result.inserted++;
+                    } else if (change == 2) {
+                        result.updated++;
+                    }
                 }
             }
 
@@ -5403,6 +5516,35 @@ public class MainActivity extends Activity {
 
         File attachmentFileForSyncId(String syncId) {
             return attachmentFile(attachmentForSyncId(syncId));
+        }
+
+        int importRemoteMonthLock(JSONObject item) {
+            if (item == null) {
+                return 0;
+            }
+            String month = item.optString("month", item.optString("month_str", "")).trim();
+            if (month.length() != 7 || month.charAt(4) != '-') {
+                return 0;
+            }
+            String remoteUpdated = item.optString("updated_at", timestamp()).trim();
+            int locked = item.optInt("is_locked", item.optBoolean("locked", true) ? 1 : 0);
+            String existingUpdated = null;
+            try (Cursor c = conn.rawQuery("SELECT IFNULL(updated_at,'') FROM month_locks WHERE month_str=?",
+                    new String[]{month})) {
+                if (c.moveToFirst()) {
+                    existingUpdated = str(c, 0);
+                }
+            }
+            if (existingUpdated != null && existingUpdated.compareTo(remoteUpdated) >= 0) {
+                return 0;
+            }
+
+            ContentValues values = new ContentValues();
+            values.put("month_str", month);
+            values.put("is_locked", locked == 0 ? 0 : 1);
+            values.put("updated_at", remoteUpdated);
+            conn.insertWithOnConflict("month_locks", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+            return existingUpdated == null ? 1 : 2;
         }
 
         String fileSha256(File file) {
@@ -5941,17 +6083,28 @@ public class MainActivity extends Activity {
         }
 
         boolean isMonthLocked(String month) {
-            try (Cursor c = conn.rawQuery("SELECT 1 FROM month_locks WHERE month_str=?", new String[]{month})) {
+            try (Cursor c = conn.rawQuery("SELECT 1 FROM month_locks WHERE month_str=? AND IFNULL(is_locked,1)=1", new String[]{month})) {
                 return c.moveToFirst();
             }
         }
 
         void lockMonth(String month) {
-            exec("INSERT OR IGNORE INTO month_locks VALUES (?)", month);
+            setMonthLock(month, true);
         }
 
         void unlockMonth(String month) {
-            conn.delete("month_locks", "month_str=?", new String[]{month});
+            setMonthLock(month, false);
+        }
+
+        void setMonthLock(String month, boolean locked) {
+            if (month == null || month.trim().isEmpty()) {
+                return;
+            }
+            ContentValues values = new ContentValues();
+            values.put("month_str", month.trim());
+            values.put("is_locked", locked ? 1 : 0);
+            values.put("updated_at", timestamp());
+            conn.insertWithOnConflict("month_locks", null, values, SQLiteDatabase.CONFLICT_REPLACE);
         }
 
         List<Account> getAccounts() {
