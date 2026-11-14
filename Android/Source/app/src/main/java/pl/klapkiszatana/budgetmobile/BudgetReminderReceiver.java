@@ -76,7 +76,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             if (!sent) sent = checkDailyExpenseReminder(context, db);
             if (!sent) sent = checkPurchaseGap(context, db);
             if (!sent) sent = checkWeeklyBackup(context);
-            if (!sent) sent = refreshPersistentTasks(context, db);
+            if (!sent) sent = refreshPersistentTasks(context, db, false);
         } catch (Exception ignored) {
         } finally {
             if (db != null) {
@@ -127,7 +127,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             return;
         }
         createChannel(context);
-        notify(context, "BudżetApp", "Powiadomienia są włączone.");
+        notify(context, "Kajet", "Powiadomienia są włączone.");
     }
 
     static void refreshTasks(Context context) {
@@ -147,7 +147,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         SQLiteDatabase db = null;
         try {
             db = SQLiteDatabase.openDatabase(dbFile.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
-            refreshPersistentTasks(context, db);
+            refreshPersistentTasks(context, db, true);
         } catch (Exception ignored) {
         } finally {
             if (db != null) {
@@ -192,7 +192,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             return notify(context, nextVariant(context, "smart_balance_title",
                     "Stan kont po wpisie",
                     "Aktualny stan po zmianie",
-                    "Budżet po ostatnim wpisie"), accountBalanceBody(db), "home");
+                    "Saldo po ostatnim wpisie"), accountBalanceBody(db), "home");
         }
         if (p.getLong("smart_expense_1_at", 0L) > 0L && p.getLong("smart_expense_1_at", 0L) <= now
                 && p.getBoolean("notify_daily_expenses", true)) {
@@ -354,12 +354,15 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         return false;
     }
 
-    private static boolean refreshPersistentTasks(Context context, SQLiteDatabase db) {
+    private static boolean refreshPersistentTasks(Context context, SQLiteDatabase db, boolean refreshOnly) {
         List<String> tasks = new ArrayList<>();
-        boolean hasBills = false;
+        boolean hasShopping = false;
         SharedPreferences p = prefs(context);
+        if (p.getBoolean("notify_shopping", true)) {
+            hasShopping = addShoppingTasks(db, tasks);
+        }
         if (p.getBoolean("notify_bills", true)) {
-            hasBills = addBillTasks(db, tasks);
+            addBillTasks(db, tasks);
         }
         if (p.getBoolean("notify_debts", true)) {
             addDebtTasks(db, "liabilities", "liability_repayment", "Dług", tasks);
@@ -369,7 +372,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
             cancelNotification(context, TASKS_NOTIFICATION_ID);
             return false;
         }
-        if (!onceToday(context, "task_summary")) {
+        if (!refreshOnly && !onceToday(context, "task_summary")) {
             return false;
         }
 
@@ -384,7 +387,7 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         String title = tasks.size() == 1
                 ? "Jedna rzecz do zrobienia"
                 : "Do zrobienia: " + tasks.size();
-        return notifyTask(context, title, join(visible), hasBills ? "bills" : "debts");
+        return notifyTask(context, title, join(visible), hasShopping ? "shopping" : "home", refreshOnly);
     }
 
     private static boolean addBillTasks(SQLiteDatabase db, List<String> tasks) {
@@ -402,6 +405,27 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
                 tasks.add(prefix + ": " + clean(c.getString(2), "bez opisu") + " " + money(c.getDouble(1)) + " (" + dueLabel(days) + ")");
                 added = true;
             }
+        }
+        return added;
+    }
+
+    private static boolean addShoppingTasks(SQLiteDatabase db, List<String> tasks) {
+        boolean added = false;
+        try (Cursor c = db.rawQuery("SELECT l.name, COUNT(i.id) " +
+                "FROM shopping_lists l " +
+                "LEFT JOIN shopping_items i ON i.list_id=l.id AND IFNULL(i.is_checked,0)=0 " +
+                "WHERE IFNULL(l.status,'open')='open' " +
+                "GROUP BY l.id, l.name " +
+                "ORDER BY IFNULL(l.created_at,'') DESC, l.id DESC", null)) {
+            while (c.moveToNext()) {
+                int count = c.getInt(1);
+                if (count <= 0) {
+                    continue;
+                }
+                tasks.add("Zakupy: " + clean(c.getString(0), "lista") + " (" + count + " rzeczy)");
+                added = true;
+            }
+        } catch (Exception ignored) {
         }
         return added;
     }
@@ -830,20 +854,24 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
 
     private static boolean notify(Context context, String title, String body, String screen) {
         return notifyInternal(context, title, body,
-                (int) (System.currentTimeMillis() & 0xfffffff), false, false, screen, null);
+                (int) (System.currentTimeMillis() & 0xfffffff), false, false, screen, null, true);
     }
 
     private static boolean notifyTask(Context context, String title, String body, String screen) {
-        return notifyInternal(context, title, body, TASKS_NOTIFICATION_ID, false, false, screen, "Otwórz");
+        return notifyTask(context, title, body, screen, false);
+    }
+
+    private static boolean notifyTask(Context context, String title, String body, String screen, boolean refreshOnly) {
+        return notifyInternal(context, title, body, TASKS_NOTIFICATION_ID, false, refreshOnly, screen, "Otwórz", !refreshOnly);
     }
 
     private static boolean notifyInternal(Context context, String title, String body, int notificationId,
-                                       boolean ongoing, boolean onlyAlertOnce, String screen, String actionLabel) {
+                                       boolean ongoing, boolean onlyAlertOnce, String screen, String actionLabel, boolean countDailySlot) {
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) {
             return false;
         }
-        if (!consumeDailyNotificationSlot(context)) {
+        if (countDailySlot && !consumeDailyNotificationSlot(context)) {
             return false;
         }
         PendingIntent content = openActivityIntent(context, screen, REQUEST_OPEN_BASE + Math.abs(notificationId % 1000));
@@ -900,10 +928,10 @@ public class BudgetReminderReceiver extends BroadcastReceiver {
         }
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "BudżetApp",
+                "Kajet",
                 NotificationManager.IMPORTANCE_DEFAULT
         );
-        channel.setDescription("Przypomnienia budżetowe, rachunki, limity i cele.");
+        channel.setDescription("Przypomnienia Kajetu, zakupy, rachunki, limity i cele.");
         manager.createNotificationChannel(channel);
     }
 

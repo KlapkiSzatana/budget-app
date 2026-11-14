@@ -1,6 +1,6 @@
 # Maintainer: KlapkiSzatana
 pkgname=budget-app
-pkgver=1.3.8
+pkgver=1.4.1
 pkgrel=1
 pkgdesc="Zarządzanie Budżetem Domowym"
 arch=('any')
@@ -20,15 +20,15 @@ source=("budget-app.py"
         "budget_sync.py")
 
 # Sumy kontrolne wygenerujesz potem komendą updpkgsums
-sha256sums=('d80e2965dfe924366eea1950afe8f33623cfb5ae639aa412d452e23efce35d8a'
-            '19108e000704902080547c514d9ed15a7582a2bbce81ddb59f12c6b4d1c2679f'
-            'cd2b42e16bebb1bd5d8d1919dd232cf93002f1275107c709c330c2c6fe6674f7'
-            'b504ce13499bd45aa4c2de72320e95ee0f9a12bc1893bf7a2aa9b868764c39a1'
+sha256sums=('00539a84cef049c1d3cb5c403514f849979146eed46fa2c1a8e939ada2cb1453'
+            'aacdd332faaea2c893f51ee9183c477a20a8583dc899b542a924fc4447f66407'
+            '56f95665746e7ee8fe4a8448935fe333fc4c6282189aa8fedc0b1cf001291bf4'
+            '165c1b14bd073429445653e92eaacbebafada4b7ddb4006c0a067efa850f79ad'
             'e64e708372afba558a753b3902711b0481e5f75ab7be00040f75e3a61136b6d7'
             'a98d76406100021b403dd096eaea861ea1315c623353d7f0a50528a118b83210'
-            '172bcc003e78d5bfe7a9aeffceedbaee50a1acf0332373b64017591e9067084d'
+            '702219f219a303e70d4433ae7468c8a8ec8841f32d5221f4a56f2e4e309eb52c'
             'f8e73616b675620be4c8d93d1c942502fd6932ca9c01ebf6ffe7051fc61c32f6'
-            '134fb63826b5a2656778fad7e948f44fa70e4b74c367569bae89577859ba98dc')
+            '0f4a420ee6ae4f1f3e505feb6112c9d5f1a1f3c1d544682e191aa6f03c4f2855')
 
 package() {
     # 1. Katalog główny aplikacji
@@ -55,7 +55,7 @@ EOF
     install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/${pkgname}.desktop" <<EOF
 [Desktop Entry]
 Name=Home Budget
-Name[pl]=Budżet Domowy
+Name[pl]=Kajet
 Comment=Home Budget Management
 Comment[pl]=Zarządzanie Budżetem Domowym
 Exec=${pkgname}

@@ -8,8 +8,8 @@ OUT_DIR="$ROOT_DIR/build/outputs/apk/debug"
 PACKAGE_NAME="pl.klapkiszatana.budgetmobile"
 MIN_SDK=29
 TARGET_SDK=35
-VERSION_CODE=1238
-VERSION_NAME="1.3.8"
+VERSION_CODE=1241
+VERSION_NAME="1.4.1"
 
 find_jdk_bin() {
     if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/javac" ]]; then
@@ -112,8 +112,8 @@ fi
     --ks "$KEYSTORE" \
     --ks-pass pass:android \
     --key-pass pass:android \
-    --out "$OUT_DIR/budgetapp-mobile.apk" \
+    --out "$OUT_DIR/kajet-mobile.apk" \
     "$BUILD_DIR/aligned.apk"
 
-"$APKSIGNER" verify "$OUT_DIR/budgetapp-mobile.apk"
-echo "$OUT_DIR/budgetapp-mobile.apk"
+"$APKSIGNER" verify "$OUT_DIR/kajet-mobile.apk"
+echo "$OUT_DIR/kajet-mobile.apk"

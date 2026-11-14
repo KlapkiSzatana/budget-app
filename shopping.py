@@ -396,7 +396,7 @@ class ShoppingListDialog(QDialog):
             for item_line in grouped[store]: items_str += item_line + "\n"
 
         subject = urllib.parse.quote(_("ZAKUPY: {}").format(self.name_edit.text()))
-        body_content = _("LISTA: {}\n{}\n\n--\nBudżet Domowy").format(self.name_edit.text(), items_str)
+        body_content = _("LISTA: {}\n{}\n\n--\nKajet").format(self.name_edit.text(), items_str)
         body = urllib.parse.quote(body_content)
         url = QUrl(f"mailto:?subject={subject}&body={body}")
         self._force_status_update('closed')

@@ -116,7 +116,7 @@ public class MainActivity extends Activity {
     static final String EXTRA_OPEN_SCREEN = "pl.klapkiszatana.budgetmobile.OPEN_SCREEN";
     static final String ACTION_OPEN_SCREEN = "pl.klapkiszatana.budgetmobile.action.OPEN_SCREEN";
     private static final String[] SCREEN_ORDER = {
-            "home", "add", "transactions", "goals", "debts", "bills", "shopping", "settings"
+            "home", "shopping", "settings"
     };
 
     private static final int RED = Color.rgb(192, 57, 43);
@@ -340,8 +340,8 @@ public class MainActivity extends Activity {
 
         LinearLayout titleBox = vbox();
         titleBox.setPadding(dp(12), 0, 0, 0);
-        titleBox.addView(text("BudżetApp Mobile", 22, RED, true));
-        titleBox.addView(text("Zarządzanie Budżetem Domowym", 12, MUTED, false));
+        titleBox.addView(text("Kajet", 22, RED, true));
+        titleBox.addView(text("saldo, płatności i zakupy", 12, MUTED, false));
         header.addView(titleBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         Button sync = smallButton("SYNC", BLUE);
@@ -482,11 +482,6 @@ public class MainActivity extends Activity {
     private void buildTabs() {
         configureTab(startTabButton, "Start", "home", GREEN);
         tabs.removeAllViews();
-        addTab("+", "add", RED);
-        addTab("Transakcje", "transactions", BLUE);
-        addTab("Cele", "goals", PURPLE);
-        addTab("Długi", "debts", ORANGE);
-        addTab("Rachunki", "bills", RED);
         addTab("Zakupy", "shopping", GREEN);
         addTab("Ustawienia", "settings", MUTED);
         tabs.post(this::scrollActiveTabIntoView);
@@ -894,121 +889,146 @@ public class MainActivity extends Activity {
     }
 
     private void buildHome() {
-        LinearLayout month = hbox();
-        month.setGravity(Gravity.CENTER_VERTICAL);
-        Button prevButton = smallButton("<", MUTED);
-        Button nextButton = smallButton(">", MUTED);
-        TextView title = text(monthTitle(), 20, TEXT, true);
-        title.setGravity(Gravity.CENTER);
-        prevButton.setOnClickListener(v -> {
-            changeMonth(-1);
-            showScreen("home");
-        });
-        nextButton.setOnClickListener(v -> {
-            changeMonth(1);
-            showScreen("home");
-        });
-        month.addView(prevButton);
-        month.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        month.addView(nextButton);
-        content.addView(month);
-
-        List<Tx> all = db.getTransactions(null, null);
-        String monthPrefix = monthPrefix();
-        double income = 0.0;
-        double expenses = 0.0;
-        double savings = 0.0;
-        double debtorReturns = 0.0;
-        Map<String, Double> expenseByCat = new LinkedHashMap<>();
-        Map<String, List<Tx>> expenseRowsByCat = new LinkedHashMap<>();
-        Map<String, Double> debtorReturnsByName = new LinkedHashMap<>();
-        Map<String, List<Tx>> debtorReturnRows = new LinkedHashMap<>();
-        Map<String, Double> liabilityPaymentsByName = new LinkedHashMap<>();
-        Map<String, List<Tx>> liabilityPaymentRows = new LinkedHashMap<>();
-
-        for (Tx tx : all) {
-            if (!tx.date.startsWith(monthPrefix)) {
-                continue;
-            }
-            if ("income".equals(tx.type)) {
-                income += tx.amount;
-            } else if ("debtor_repayment".equals(tx.type)) {
-                debtorReturns += tx.amount;
-                addToMap(debtorReturnsByName, tx.subcategory, tx.amount);
-                addToListMap(debtorReturnRows, tx.subcategory, tx);
-            } else if ("expense".equals(tx.type)) {
-                expenses += tx.amount;
-                addToMap(expenseByCat, tx.category, tx.amount);
-                addToListMap(expenseRowsByCat, tx.category, tx);
-            } else if ("liability_repayment".equals(tx.type)) {
-                String key = "Spłata: " + tx.subcategory;
-                expenses += tx.amount;
-                addToMap(expenseByCat, key, tx.amount);
-                addToListMap(expenseRowsByCat, key, tx);
-                addToMap(liabilityPaymentsByName, tx.subcategory, tx.amount);
-                addToListMap(liabilityPaymentRows, tx.subcategory, tx);
-            } else if ("savings".equals(tx.type) || "savings_migration".equals(tx.type)) {
-                savings += tx.amount;
-            } else if ("goal_deposit".equals(tx.type)) {
-                expenses += tx.amount;
-            }
-        }
+        content.addView(sectionTitle("Kajet"));
 
         double totalBalance = db.totalBalanceAllAccounts();
-        LinearLayout grid = new LinearLayout(this);
-        grid.setOrientation(LinearLayout.VERTICAL);
-        content.addView(grid);
-        grid.addView(metricCard("Saldo łączne", money(totalBalance), totalBalance >= 0 ? GREEN : RED));
-        grid.addView(metricCard("Wpływy", money(income + debtorReturns), GREEN));
-        grid.addView(metricCard("Wydatki", money(expenses), RED));
-        grid.addView(metricCard("Oszczędności", money(db.totalCashSavings()), BLUE));
+        content.addView(metricCard("Saldo łączne", money(totalBalance), totalBalance >= 0 ? GREEN : RED));
 
-        content.addView(sectionTitle("Konta"));
         LinearLayout accountsBox = card();
-        double prevTotal = 0.0;
-        String firstDayOfMonth = monthPrefix() + "-01";
-        for (Account acc : db.getAccounts()) {
-            TextView row = text(acc.name + ": " + money(db.accountBalance(acc.id)), 15, parseColor(acc.color, TEXT), true);
-            row.setPadding(0, dp(4), 0, dp(4));
-            accountsBox.addView(row);
-            prevTotal += db.accountBalanceBefore(acc.id, firstDayOfMonth);
-        }
-        TextView prev = text("Z poprzedniego miesiąca: " + money(prevTotal), 13, MUTED, true);
-        prev.setPadding(0, dp(8), 0, dp(2));
-        accountsBox.addView(prev);
-        content.addView(accountsBox);
-
-        buildWeeklySummary();
-        buildBillAlerts();
-        buildHomeQuickActions();
-
-        content.addView(sectionTitle("Największe wydatki"));
-        LinearLayout topBox = card();
-        List<Map.Entry<String, Double>> expensesSorted = new ArrayList<>(expenseByCat.entrySet());
-        expensesSorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
-        if (expensesSorted.isEmpty()) {
-            topBox.addView(text("Brak wydatków w tym miesiącu.", 14, MUTED, false));
+        List<Account> accounts = db.getAccounts();
+        if (accounts.isEmpty()) {
+            accountsBox.addView(text("Brak kont do pokazania.", 14, MUTED, false));
         } else {
-            int max = Math.min(6, expensesSorted.size());
-            for (int i = 0; i < max; i++) {
-                Map.Entry<String, Double> e = expensesSorted.get(i);
-                addExpandableSummaryRow(topBox, "expense:" + e.getKey(), e.getKey(), e.getValue(),
-                        expenses <= 0 ? 1 : expenses, RED, expenseRowsByCat.get(e.getKey()));
+            for (Account acc : accounts) {
+                accountsBox.addView(twoCol(acc.name, money(db.accountBalance(acc.id)), parseColor(acc.color, TEXT), TEXT));
             }
         }
-        content.addView(topBox);
+        content.addView(accountsBox);
 
-        buildCompactGoals();
-        buildCompactDebts();
+        buildHomeShoppingSummary();
+        buildHomeLastTransactions();
+        buildHomeUpcomingPayments();
+        buildHomeQuickActions();
     }
 
     private void buildHomeQuickActions() {
         LinearLayout quick = hbox();
-        quick.addView(actionButton("Dodaj wpis", RED, v -> showScreen("add")),
+        quick.addView(actionButton("Zakupy", GREEN, v -> showScreen("shopping")),
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        quick.addView(actionButton("Transakcje", BLUE, v -> showScreen("transactions")),
+        quick.addView(actionButton("Synchronizuj", BLUE, v -> confirmSync()),
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         content.addView(quick);
+    }
+
+    private void buildHomeShoppingSummary() {
+        content.addView(sectionTitle("Zakupy"));
+        LinearLayout box = card();
+        List<ShoppingListData> lists = db.getShoppingLists();
+        ShoppingListData firstOpen = null;
+        int openCount = 0;
+        int pendingItems = 0;
+
+        for (ShoppingListData list : lists) {
+            if (!"open".equals(list.status)) {
+                continue;
+            }
+            openCount++;
+            if (firstOpen == null) {
+                firstOpen = list;
+            }
+            for (ShoppingItem item : db.getShoppingItems(list.id)) {
+                if (!item.checked) {
+                    pendingItems++;
+                }
+            }
+        }
+
+        if (firstOpen == null) {
+            box.addView(text("Nie ma otwartej listy zakupów.", 14, MUTED, false));
+        } else {
+            selectedShoppingListId = firstOpen.id;
+            int selectedPending = 0;
+            List<ShoppingItem> items = db.getShoppingItems(firstOpen.id);
+            for (ShoppingItem item : items) {
+                if (!item.checked) {
+                    selectedPending++;
+                }
+            }
+            box.addView(twoCol(firstOpen.name, selectedPending + " rzeczy do kupienia", TEXT, GREEN));
+            if (openCount > 1) {
+                box.addView(text("Otwarte listy: " + openCount + ", razem: " + pendingItems + " rzeczy", 13, MUTED, true));
+            }
+            int shown = 0;
+            for (ShoppingItem item : items) {
+                if (item.checked) {
+                    continue;
+                }
+                String store = item.store == null || item.store.trim().isEmpty() ? "Inne" : item.store.trim();
+                box.addView(text("• " + item.product + " (" + item.quantity + ") - " + store, 14, TEXT, false));
+                shown++;
+                if (shown >= 5) {
+                    break;
+                }
+            }
+            if (shown == 0) {
+                box.addView(text("Wszystko odhaczone.", 14, GREEN, true));
+            }
+        }
+        content.addView(box);
+    }
+
+    private void buildHomeLastTransactions() {
+        content.addView(sectionTitle("Ostatnie wpisy"));
+        LinearLayout box = card();
+        List<Tx> rows = db.getTransactions(null, null);
+        if (rows.isEmpty()) {
+            box.addView(text("Brak wpisów.", 14, MUTED, false));
+        } else {
+            int max = Math.min(5, rows.size());
+            for (int i = 0; i < max; i++) {
+                Tx tx = rows.get(i);
+                String title = tx.subcategory == null || tx.subcategory.trim().isEmpty() ? tx.category : tx.subcategory;
+                box.addView(twoCol(tx.date + "  " + title, money(tx.amount), MUTED, transactionAmountColor(tx)));
+            }
+        }
+        content.addView(box);
+    }
+
+    private void buildHomeUpcomingPayments() {
+        content.addView(sectionTitle("Do ogarnięcia"));
+        LinearLayout box = card();
+        int shown = 0;
+        Calendar todayCal = calendarFrom(today());
+
+        for (Bill bill : db.getPendingBills()) {
+            long days = daysBetween(todayCal, calendarFrom(bill.dueDate));
+            int color = days < 0 ? RED : (days <= 3 ? ORANGE : BLUE);
+            String when = days < 0 ? "po terminie " + Math.abs(days) + " dni"
+                    : (days == 0 ? "dzisiaj" : "za " + days + " dni");
+            box.addView(twoCol(bill.description + " - " + when, money(bill.amount), TEXT, color));
+            shown++;
+            if (shown >= 5) {
+                break;
+            }
+        }
+
+        if (shown < 5) {
+            for (Debt debt : db.getDebts("liabilities")) {
+                if (debt.remaining() <= 0.01) {
+                    continue;
+                }
+                box.addView(twoCol("Dług: " + debt.name + " do " + debt.deadline, money(debt.remaining()), TEXT, ORANGE));
+                shown++;
+                if (shown >= 5) {
+                    break;
+                }
+            }
+        }
+
+        if (shown == 0) {
+            box.addView(text("Brak pilnych płatności.", 14, GREEN, true));
+        }
+        content.addView(box);
     }
 
     private void buildWeeklySummary() {
@@ -1805,6 +1825,10 @@ public class MainActivity extends Activity {
                 toast("Wybierz różne miejsca i kwotę");
                 return;
             }
+            if (db.isMonthLocked(today().substring(0, 7))) {
+                toast("Ten miesiąc jest zamknięty");
+                return;
+            }
             Account selected = selectedAccount(acc);
             db.addTransaction(today(), "savings", "Oszczędności", s, -a, 0,
                     "Transfer do: " + t, null, selected.id, null);
@@ -1833,6 +1857,10 @@ public class MainActivity extends Activity {
 
     private void goalOperation(Goal goal, boolean deposit) {
         amountDialog(deposit ? "Wpłata na cel" : "Wypłata z celu", goal.name, deposit ? BLUE : GREEN, (amount, details, accountId) -> {
+            if (db.isMonthLocked(today().substring(0, 7))) {
+                toast("Ten miesiąc jest zamknięty");
+                return;
+            }
             double signed = deposit ? amount : -amount;
             db.addTransaction(today(), "goal_deposit", "Cele", goal.name, signed, 0, details, null, accountId, goal.id);
             showScreen("goals");
@@ -1889,8 +1917,14 @@ public class MainActivity extends Activity {
         EditText deadline = input("Termin RRRR-MM-DD", today());
         attachDatePicker(deadline);
         Spinner account = accountSpinner();
+        CheckBox mergeExisting = new CheckBox(this);
+        mergeExisting.setText(debtor
+                ? "Połącz z aktywnym dłużnikiem o tej samej nazwie"
+                : "Połącz z aktywnym długiem o tej samej nazwie");
+        mergeExisting.setChecked(true);
         form.addView(label(debtor ? "Nowy dłużnik" : "Nowe zobowiązanie"));
         form.addView(name);
+        form.addView(mergeExisting);
         form.addView(label(debtor ? "Płacę z konta" : "Konto"));
         form.addView(account);
         form.addView(label("Kwota")); form.addView(amount);
@@ -1903,7 +1937,15 @@ public class MainActivity extends Activity {
                 toast("Uzupełnij nazwę, kwotę i datę");
                 return;
             }
-            long id = db.addDebt(table, n, a, d);
+            if (debtor && db.isMonthLocked(today().substring(0, 7))) {
+                toast("Ten miesiąc jest zamknięty");
+                return;
+            }
+            long id = mergeExisting.isChecked() ? db.addOrMergeDebt(table, n, a, d) : db.addDebt(table, n, a, d);
+            if (id <= 0) {
+                toast("Nie udało się zapisać długu");
+                return;
+            }
             if (debtor) {
                 Account acc = selectedAccount(account);
                 db.addTransaction(today(), "expense", "Pożyczki", n, a, 0, "", null, acc.id, id);
@@ -1926,6 +1968,10 @@ public class MainActivity extends Activity {
         LinearLayout buttons = hbox();
         buttons.addView(actionButton(debtor ? "Zwrot" : "Spłać", debtor ? BLUE : ORANGE, v -> {
             amountDialog(debtor ? "Zwrot od dłużnika" : "Spłata długu", debt.name, debtor ? BLUE : ORANGE, (amount, details, accountId) -> {
+                if (db.isMonthLocked(today().substring(0, 7))) {
+                    toast("Ten miesiąc jest zamknięty");
+                    return;
+                }
                 String type = debtor ? "debtor_repayment" : "liability_repayment";
                 db.addTransaction(today(), type,
                         debtor ? "Zwrot od Dłużnika" : "Spłata Długu",
@@ -1959,7 +2005,7 @@ public class MainActivity extends Activity {
     }
 
     private void buildShopping() {
-        content.addView(sectionTitle("Lista zakupów"));
+        content.addView(sectionTitle("Zakupy"));
         List<ShoppingListData> lists = db.getShoppingLists();
         if (selectedShoppingListId < 0 && !lists.isEmpty()) {
             for (ShoppingListData list : lists) {
@@ -1983,6 +2029,7 @@ public class MainActivity extends Activity {
                 return;
             }
             selectedShoppingListId = db.createShoppingList(n);
+            BudgetReminderReceiver.refreshTasks(this);
             showScreen("shopping");
         }));
         content.addView(create);
@@ -2076,6 +2123,7 @@ public class MainActivity extends Activity {
                 return;
             }
             toast("Dodano: " + added);
+            BudgetReminderReceiver.refreshTasks(this);
             showScreen("shopping");
         }));
 
@@ -2085,6 +2133,7 @@ public class MainActivity extends Activity {
             String productName = product.getText().toString().trim();
 
             if (addShoppingProduct(selectedShoppingListId, productName, qty.getText().toString().trim(), shopName)) {
+                BudgetReminderReceiver.refreshTasks(this);
                 showScreen("shopping");
             } else {
                 toast("Wpisz produkt");
@@ -2114,11 +2163,15 @@ public class MainActivity extends Activity {
                     cb.setChecked(item.checked);
                     cb.setText(item.product + " (" + item.quantity + ")");
                     cb.setTextColor(item.checked ? MUTED : TEXT);
-                    cb.setOnCheckedChangeListener((buttonView, isChecked) -> db.setShoppingItemChecked(item.id, isChecked));
+                    cb.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                        db.setShoppingItemChecked(item.id, isChecked);
+                        BudgetReminderReceiver.refreshTasks(this);
+                    });
                     line.addView(cb, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
                     Button del = smallButton("x", RED);
                     del.setOnClickListener(v -> {
                         db.deleteShoppingItem(item.id);
+                        BudgetReminderReceiver.refreshTasks(this);
                         showScreen("shopping");
                     });
                     line.addView(del);
@@ -2139,6 +2192,7 @@ public class MainActivity extends Activity {
             }
 
             db.closeShoppingList(selectedShoppingListId);
+            BudgetReminderReceiver.refreshTasks(this);
             showScreen("shopping");
 
         }), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -2185,6 +2239,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Usuń", (d, w) -> {
                     db.deleteShoppingList(id);
                     selectedShoppingListId = -1;
+                    BudgetReminderReceiver.refreshTasks(this);
                     showScreen("shopping");
                 })
                 .setNegativeButton("Anuluj", null)
@@ -2360,6 +2415,10 @@ public class MainActivity extends Activity {
 
     private void payBillDialog(Bill bill) {
         amountDialog("Zapłać rachunek", bill.description + " " + money(bill.amount), GREEN, (amount, details, accountId) -> {
+            if (db.isMonthLocked(today().substring(0, 7))) {
+                toast("Ten miesiąc jest zamknięty");
+                return;
+            }
             db.markBillPaid(bill.id);
             String type = "Spłata Długu".equals(bill.category) ? "liability_repayment" : "expense";
             db.addTransaction(today(), type, bill.category, bill.description, amount, 0, details, null, accountId, bill.refId);
@@ -2473,6 +2532,7 @@ public class MainActivity extends Activity {
         CheckBox weekly = notificationCheck("Limit tygodniowy", "notify_weekly", true);
         CheckBox goals = notificationCheck("Cele oszczędnościowe", "notify_goals", true);
         CheckBox debts = notificationCheck("Długi i dłużnicy", "notify_debts", true);
+        CheckBox shopping = notificationCheck("Listy zakupów", "notify_shopping", true);
         CheckBox backup = notificationCheck("Cotygodniowa kopia zapasowa", "notify_backup", true);
         CheckBox daily = notificationCheck("Codzienne przypomnienie o wydatkach", "notify_daily_expenses", true);
         CheckBox insights = notificationCheck("Zróżnicowane podpowiedzi zakupowe", "notify_insights", true);
@@ -2486,6 +2546,7 @@ public class MainActivity extends Activity {
         box.addView(weekly);
         box.addView(goals);
         box.addView(debts);
+        box.addView(shopping);
         box.addView(backup);
         box.addView(daily);
         box.addView(insights);
@@ -2730,7 +2791,7 @@ public class MainActivity extends Activity {
             intent.putExtra(Intent.EXTRA_STREAM, uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(intent, "Wyślij backup do PC"));
-            toast("Backup zapisany w Pobrane/BudgetApp");
+            toast("Backup zapisany w Pobrane/Kajet");
         } catch (Exception ex) {
             toast("Nie udało się wyeksportować bazy");
         }
@@ -3113,7 +3174,7 @@ public class MainActivity extends Activity {
             } else if ("GET".equals(method) && "/status".equals(cleanPath)) {
                 response = new JSONObject();
                 response.put("ok", true);
-                response.put("service", "BudgetApp Mobile Sync LAN");
+                response.put("service", "Kajet Mobile Sync LAN");
                 response.put("urls", new JSONArray(mobileSyncUrls()));
             } else if ("GET".equals(method) && "/transactions".equals(cleanPath)) {
                 synchronized (db) {
@@ -3330,7 +3391,7 @@ public class MainActivity extends Activity {
         ContentValues values = new ContentValues();
         values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
         values.put(MediaStore.Downloads.MIME_TYPE, mime);
-        values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BudgetApp");
+        values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Kajet");
         values.put(MediaStore.Downloads.IS_PENDING, 1);
         Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
         if (uri == null) {
@@ -6338,6 +6399,37 @@ public class MainActivity extends Activity {
             values.put("sync_id", UUID.randomUUID().toString());
             values.put("updated_at", timestamp());
             return conn.insert(table, null, values);
+        }
+
+        long addOrMergeDebt(String table, String name, double amount, String deadline) {
+            Debt existing = activeDebtByName(table, name);
+            if (existing != null) {
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put("total_amount", existing.total + amount);
+                values.put("deadline", deadline);
+                values.put("updated_at", timestamp());
+                conn.update(table, values, "id=?", new String[]{String.valueOf(existing.id)});
+                return existing.id;
+            }
+            return addDebt(table, name, amount, deadline);
+        }
+
+        Debt activeDebtByName(String table, String name) {
+            String target = normalizedDebtName(name);
+            if (target.isEmpty()) {
+                return null;
+            }
+            for (Debt debt : getDebts(table)) {
+                if (normalizedDebtName(debt.name).equals(target) && debt.remaining() > 0.01) {
+                    return debt;
+                }
+            }
+            return null;
+        }
+
+        String normalizedDebtName(String name) {
+            String raw = name == null ? "" : name.trim().replaceAll("\\s+", " ");
+            return raw.toLowerCase(Locale.ROOT);
         }
 
         List<Debt> getDebts(String table) {

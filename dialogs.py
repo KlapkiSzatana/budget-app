@@ -77,11 +77,14 @@ class LineEditCompleter(QObject):
         self.popup.setFocusPolicy(Qt.NoFocus)
         self.popup.setUniformItemSizes(True)
         self.popup.setMaximumHeight(180)
-        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text()))
+        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text(), full_completion=True))
         self._inserting = False
         self._pending_popup = False
+        self._suppress_popup_until_focus_in = False
+        self._keyboard_selection_active = False
+        self._manual_hidden_text = None
         line_edit.installEventFilter(self)
-        line_edit.textEdited.connect(self.schedule_popup)
+        line_edit.textEdited.connect(self.on_text_edited)
         line_edit.cursorPositionChanged.connect(lambda _old, _new: self.schedule_popup())
 
     def eventFilter(self, obj, event):
@@ -90,20 +93,29 @@ class LineEditCompleter(QObject):
                 key = event.key()
                 if key in (Qt.Key_Return, Qt.Key_Enter):
                     current = self.popup.currentItem()
-                    if current:
+                    if self._keyboard_selection_active and current:
                         self.insert_completion(current.text())
                         return True
-                if key in (Qt.Key_Tab, Qt.Key_Backtab):
                     self.popup.hide()
                     return False
-                if key == Qt.Key_Escape:
+                if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    self._suppress_popup_until_focus_in = True
                     self.popup.hide()
+                    return False
+                if key in (Qt.Key_Left, Qt.Key_Right):
+                    self.hide_until_text_changes()
+                    return False
+                if key == Qt.Key_Escape:
+                    self.hide_until_text_changes()
                     return True
                 if key in (Qt.Key_Down, Qt.Key_Up):
                     self.move_selection(1 if key == Qt.Key_Down else -1)
                     return True
         elif obj is self.line_edit and event.type() == QEvent.FocusOut:
             self.popup.hide()
+        elif obj is self.line_edit and event.type() == QEvent.FocusIn:
+            self._suppress_popup_until_focus_in = False
+            self._manual_hidden_text = None
         return super().eventFilter(obj, event)
 
     def current_prefix(self):
@@ -118,6 +130,10 @@ class LineEditCompleter(QObject):
         self._pending_popup = True
         QTimer.singleShot(0, self.update_popup)
 
+    def on_text_edited(self):
+        self._manual_hidden_text = None
+        self.schedule_popup()
+
     def update_popup(self):
         self._pending_popup = False
         if self._inserting:
@@ -125,7 +141,13 @@ class LineEditCompleter(QObject):
         if shiboken is not None:
             if not shiboken.isValid(self.line_edit) or not shiboken.isValid(self.popup):
                 return
-        if not self.line_edit.isVisible() or self.line_edit.isReadOnly():
+        if (
+            self._suppress_popup_until_focus_in
+            or self._manual_hidden_text == self.line_edit.text()
+            or not self.line_edit.isVisible()
+            or not self.line_edit.hasFocus()
+            or self.line_edit.isReadOnly()
+        ):
             self.popup.hide()
             return
 
@@ -159,7 +181,9 @@ class LineEditCompleter(QObject):
 
         self.popup.clear()
         self.popup.addItems(matches)
-        self.popup.setCurrentRow(0)
+        self._keyboard_selection_active = False
+        self.popup.setCurrentRow(-1)
+        self.popup.clearSelection()
         width = max(220, self.popup.sizeHintForColumn(0) + self.popup.verticalScrollBar().sizeHint().width() + 20)
         row_height = max(24, self.popup.sizeHintForRow(0))
         height = min(180, row_height * min(len(matches), 7) + 6)
@@ -174,10 +198,13 @@ class LineEditCompleter(QObject):
             return
         row = self.popup.currentRow()
         if row < 0:
-            row = 0
-        self.popup.setCurrentRow(max(0, min(count - 1, row + offset)))
+            row = 0 if offset >= 0 else count - 1
+        else:
+            row = max(0, min(count - 1, row + offset))
+        self._keyboard_selection_active = True
+        self.popup.setCurrentRow(row)
 
-    def insert_completion(self, completion):
+    def insert_completion(self, completion, full_completion=False):
         completion = str(completion or "").strip()
         if not completion:
             return
@@ -186,6 +213,12 @@ class LineEditCompleter(QObject):
                 return
         self._inserting = True
         try:
+            if full_completion:
+                self.line_edit.setText(completion)
+                self.line_edit.setCursorPosition(len(completion))
+                self.popup.hide()
+                return
+
             text = self.line_edit.text()
             cursor = self.line_edit.cursorPosition()
             prefix, start, end = self.current_prefix()
@@ -212,6 +245,10 @@ class LineEditCompleter(QObject):
             return True
         return False
 
+    def hide_until_text_changes(self):
+        self._manual_hidden_text = self.line_edit.text()
+        self.popup.hide()
+
 class TextEditCompleter(QObject):
     def __init__(self, editor, suggestions):
         super().__init__(editor)
@@ -232,11 +269,14 @@ class TextEditCompleter(QObject):
         self.popup.setFocusPolicy(Qt.NoFocus)
         self.popup.setUniformItemSizes(True)
         self.popup.setMaximumHeight(180)
-        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text()))
+        self.popup.itemClicked.connect(lambda item: self.insert_completion(item.text(), full_completion=True))
         self._inserting = False
         self._pending_popup = False
+        self._suppress_popup_until_focus_in = False
+        self._keyboard_selection_active = False
+        self._manual_hidden_text = None
         editor.installEventFilter(self)
-        editor.textChanged.connect(self.schedule_popup)
+        editor.textChanged.connect(self.on_text_changed)
 
     def eventFilter(self, obj, event):
         if obj is self.editor and event.type() == QEvent.KeyPress:
@@ -244,18 +284,29 @@ class TextEditCompleter(QObject):
                 key = event.key()
                 if key in (Qt.Key_Return, Qt.Key_Enter):
                     current = self.popup.currentItem()
-                    if current:
-                        self.insert_completion(current.text(), add_newline=key in (Qt.Key_Return, Qt.Key_Enter))
+                    if self._keyboard_selection_active and current:
+                        self.insert_completion(current.text())
                         return True
-                if key in (Qt.Key_Tab, Qt.Key_Backtab):
                     self.popup.hide()
                     return False
-                if key == Qt.Key_Escape:
+                if key in (Qt.Key_Tab, Qt.Key_Backtab):
+                    self._suppress_popup_until_focus_in = True
                     self.popup.hide()
+                    return False
+                if key in (Qt.Key_Left, Qt.Key_Right):
+                    self.hide_until_text_changes()
+                    return False
+                if key == Qt.Key_Escape:
+                    self.hide_until_text_changes()
                     return True
                 if key in (Qt.Key_Down, Qt.Key_Up):
                     self.move_selection(1 if key == Qt.Key_Down else -1)
                     return True
+        elif obj is self.editor and event.type() == QEvent.FocusOut:
+            self.popup.hide()
+        elif obj is self.editor and event.type() == QEvent.FocusIn:
+            self._suppress_popup_until_focus_in = False
+            self._manual_hidden_text = None
         return super().eventFilter(obj, event)
 
     def current_prefix(self):
@@ -269,6 +320,11 @@ class TextEditCompleter(QObject):
         self._pending_popup = True
         QTimer.singleShot(0, self.update_popup)
 
+    def on_text_changed(self):
+        if not self._inserting:
+            self._manual_hidden_text = None
+        self.schedule_popup()
+
     def update_popup(self):
         self._pending_popup = False
         if self._inserting:
@@ -276,7 +332,12 @@ class TextEditCompleter(QObject):
         if shiboken is not None:
             if not shiboken.isValid(self.editor) or not shiboken.isValid(self.popup):
                 return
-        if not self.editor.isVisible():
+        if (
+            self._suppress_popup_until_focus_in
+            or self._manual_hidden_text == self.editor.toPlainText()
+            or not self.editor.isVisible()
+            or not self.editor.hasFocus()
+        ):
             self.popup.hide()
             return
         prefix = self.current_prefix()
@@ -300,7 +361,9 @@ class TextEditCompleter(QObject):
 
         self.popup.clear()
         self.popup.addItems(matches)
-        self.popup.setCurrentRow(0)
+        self._keyboard_selection_active = False
+        self.popup.setCurrentRow(-1)
+        self.popup.clearSelection()
         rect = self.editor.cursorRect()
         width = max(220, self.popup.sizeHintForColumn(0) + self.popup.verticalScrollBar().sizeHint().width() + 20)
         row_height = max(24, self.popup.sizeHintForRow(0))
@@ -316,10 +379,13 @@ class TextEditCompleter(QObject):
             return
         row = self.popup.currentRow()
         if row < 0:
-            row = 0
-        self.popup.setCurrentRow(max(0, min(count - 1, row + offset)))
+            row = 0 if offset >= 0 else count - 1
+        else:
+            row = max(0, min(count - 1, row + offset))
+        self._keyboard_selection_active = True
+        self.popup.setCurrentRow(row)
 
-    def insert_completion(self, completion, add_newline=False):
+    def insert_completion(self, completion, add_newline=False, full_completion=False):
         completion = str(completion or "").strip()
         if not completion:
             return
@@ -340,7 +406,7 @@ class TextEditCompleter(QObject):
                 cursor.insertText(completion)
             else:
                 cursor.select(QTextCursor.WordUnderCursor)
-                cursor.insertText(_completion_word_for_prefix(completion, prefix))
+                cursor.insertText(completion if full_completion else _completion_word_for_prefix(completion, prefix))
             if add_newline:
                 cursor.insertBlock()
             self.editor.setTextCursor(cursor)
@@ -353,6 +419,10 @@ class TextEditCompleter(QObject):
             self.popup.hide()
             return True
         return False
+
+    def hide_until_text_changes(self):
+        self._manual_hidden_text = self.editor.toPlainText()
+        self.popup.hide()
 
 class DialogEscapeConfirmFilter(QObject):
     def __init__(self, dialog):
@@ -1470,6 +1540,11 @@ class AddSavingsDialog(QDialog):
         savings_id = self.savings_account_combo.currentData()
 
         if wallet_id != savings_id:
+            today_month = QDate.currentDate().toString("yyyy-MM")
+            if self.db.is_month_locked(today_month):
+                QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                return
+
             if val <= 0:
                 QMessageBox.warning(self, _("Błąd"), _("Podaj poprawną kwotę"))
                 return
@@ -1777,6 +1852,8 @@ class LiabilitiesDialog(QDialog):
 
         self.lbl_n = QLabel(_("Komu (Nazwa):"))
         self.n = QLineEdit()
+        self.merge_existing = QCheckBox(_("Połącz z aktywnym długiem o tej samej nazwie"))
+        self.merge_existing.setChecked(True)
         self.lbl_c = QLabel(_("Wybierz dług:"))
         self.c = QComboBox()
         self.a = QLineEdit()
@@ -1804,6 +1881,7 @@ class LiabilitiesDialog(QDialog):
         # Układanie pól w formularzu
         self.form_layout.addRow(self.lbl_acc, self.account_combo) # <-- DODANE na górze
         self.form_layout.addRow(self.lbl_n, self.n)
+        self.form_layout.addRow("", self.merge_existing)
         self.form_layout.addRow(self.lbl_c, self.c)
         self.form_layout.addRow(_("Kwota:"), self.a)
         self.form_layout.addRow(self.lbl_deadline, self.d)
@@ -1873,6 +1951,7 @@ class LiabilitiesDialog(QDialog):
         is_new = self.rb_new.isChecked()
         self.lbl_n.setVisible(is_new)
         self.n.setVisible(is_new)
+        self.merge_existing.setVisible(is_new)
         self.lbl_c.setVisible(not is_new)
         self.c.setVisible(not is_new)
 
@@ -1922,6 +2001,7 @@ class LiabilitiesDialog(QDialog):
                 "amount": amt,
                 "deadline": self.d.date().toString("yyyy-MM-dd"),
                 "attachment": self.attachment_data,
+                "merge_existing": self.merge_existing.isChecked(),
                 "account_id": self.account_combo.currentData() # <-- DODANE
             }
         else:
@@ -1973,6 +2053,8 @@ class DebtorsDialog(QDialog):
 
         self.lbl_n = QLabel(_("Komu (Nazwa):"))
         self.n = QLineEdit()
+        self.merge_existing = QCheckBox(_("Połącz z aktywnym dłużnikiem o tej samej nazwie"))
+        self.merge_existing.setChecked(True)
         self.lbl_c = QLabel(_("Wybierz dłużnika:"))
         self.c = QComboBox()
         self.a = QLineEdit()
@@ -2000,6 +2082,7 @@ class DebtorsDialog(QDialog):
         # Układanie w formularzu
         self.form_layout.addRow(self.lbl_acc, self.account_combo) # <-- DODANE na górze
         self.form_layout.addRow(self.lbl_n, self.n)
+        self.form_layout.addRow("", self.merge_existing)
         self.form_layout.addRow(self.lbl_c, self.c)
         self.form_layout.addRow(_("Kwota:"), self.a)
         self.form_layout.addRow(self.lbl_deadline, self.d)
@@ -2071,6 +2154,7 @@ class DebtorsDialog(QDialog):
         is_new = self.rb_new.isChecked()
         self.lbl_n.setVisible(is_new)
         self.n.setVisible(is_new)
+        self.merge_existing.setVisible(is_new)
         self.lbl_c.setVisible(not is_new)
         self.c.setVisible(not is_new)
 
@@ -2122,6 +2206,7 @@ class DebtorsDialog(QDialog):
                 "amount": amt,
                 "deadline": self.d.date().toString("yyyy-MM-dd"),
                 "attachment": self.attachment_data,
+                "merge_existing": self.merge_existing.isChecked(),
                 "account_id": self.account_combo.currentData() # <-- DODANE
             }
         else:
@@ -2199,10 +2284,11 @@ class ReportSelectionDialog(QDialog):
         super().accept()
 
 class EditDialog(QDialog):
-    def __init__(self, parent, data, db):
+    def __init__(self, parent, data, db, read_only=False):
         super().__init__(parent)
         self.db = db
-        self.setWindowTitle(_("Edycja transakcji"))
+        self.read_only = read_only
+        self.setWindowTitle(_("Podgląd transakcji") if read_only else _("Edycja transakcji"))
         self.resize(450, 530)  # Zwiększona wysokość na przycisk załącznika
 
         l = QFormLayout(self)
@@ -2291,11 +2377,21 @@ class EditDialog(QDialog):
             QPushButton:hover { background-color: #2980b9; color: #ffffff; }
         """)
 
-        btn_cancel.setText(_("Anuluj"))
+        btn_cancel.setText(_("Zamknij") if read_only else _("Anuluj"))
         btn_cancel.setStyleSheet(btn_base_style + """
             QPushButton { color: #7f8c8d; border-color: #95a5a6; }
             QPushButton:hover { background-color: #7f8c8d; color: #ffffff; }
         """)
+
+        if read_only:
+            btn_save.hide()
+            self.d.setEnabled(False)
+            self.account_combo.setEnabled(False)
+            self.c.setEnabled(False)
+            self.s.setReadOnly(True)
+            self.det.setReadOnly(True)
+            self.a.setReadOnly(True)
+            self.btn_attach.setEnabled(False)
 
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
@@ -2309,7 +2405,8 @@ class EditDialog(QDialog):
         l.addRow(_("Kwota:"), self.a)
         l.addRow(_("Dokument:"), self.btn_attach)
         l.addRow(bb)
-        install_dialog_autocomplete(self, self.db)
+        if not read_only:
+            install_dialog_autocomplete(self, self.db)
 
     def select_attachment(self):
         from PySide6.QtWidgets import QFileDialog
@@ -2616,6 +2713,11 @@ class BillsManagerDialog(QDialog):
 
         pay_dlg = BillPaymentConfirmDialog(self, self.db, desc, amt)
         if pay_dlg.exec():
+            payment_date = QDate.currentDate().toString("yyyy-MM-dd")
+            if self.db.is_month_locked(payment_date[:7]):
+                QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                return
+
             res = pay_dlg.get_data()
             self.db.mark_bill_paid(b_id)
 
@@ -2632,7 +2734,7 @@ class BillsManagerDialog(QDialog):
 
             # Dodanie do historii transakcji
             self.db.add_transaction(
-                date=QDate.currentDate().toString("yyyy-MM-dd"),
+                date=payment_date,
                 t_type=t_type,
                 category=cat,
                 subcategory=desc,

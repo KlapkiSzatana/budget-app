@@ -163,8 +163,9 @@ jobs:
             dist/BudgetApp_linux.tar.gz
           body: |
             ## Zmiany w tej wersji:
-            - Poprawki w interfejsie Android
+            - Zmiana działania aplikacji Android (tylko informacja + Zakupy)
             - Poprawki w interfejsie PC
+            - Zmiana nazwy aplikacji - Polska wersja: "Kajet" (zmiany nazw plików itp w następnych aktualizacjach)
             ---
             ### ⚠️ Informacja o podpisie cyfrowym (SmartScreen / macOS Gatekeeper)
 

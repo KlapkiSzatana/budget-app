@@ -72,7 +72,7 @@ class BudgetSyncServer:
                 if path == "/status":
                     self._send_json(200, {
                         "ok": True,
-                        "service": "BudgetApp Sync LAN",
+                        "service": "Kajet Sync LAN",
                         "urls": outer.urls(),
                     })
                     return

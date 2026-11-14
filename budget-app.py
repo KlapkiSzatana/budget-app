@@ -466,7 +466,7 @@ class BudgetApp(QMainWindow):
 
     def perform_sync(self):
         if self.sync_thread and self.sync_thread.isRunning():
-            QMessageBox.information(self, _("Synchronizacja"), _("Synchronizacja już trwa."))
+            self.show_auto_information(_("Synchronizacja"), _("Synchronizacja już trwa."))
             return
 
         self.apply_sync_settings(show_errors=False)
@@ -515,8 +515,7 @@ class BudgetApp(QMainWindow):
             attachments = result.get("attachments", {}) if isinstance(result, dict) else {}
             remote = incoming.get("imported", {}) if isinstance(incoming, dict) else {}
             self.load_transactions()
-            QMessageBox.information(
-                self,
+            self.show_auto_information(
                 _("Synchronizacja"),
                 _("Synchronizacja zakończona.\nPC: +{inserted}, aktualizacje: {updated}, usunięto: {deleted}, załączniki: +{attachments}\nDrugie urządzenie: +{r_inserted}, aktualizacje: {r_updated}, usunięto: {r_deleted}, załączniki: +{r_attachments}").format(
                     inserted=local.get("inserted", 0),
@@ -527,7 +526,8 @@ class BudgetApp(QMainWindow):
                     r_updated=remote.get("updated", 0),
                     r_deleted=remote.get("deleted", 0),
                     r_attachments=remote.get("attachments_downloaded", 0),
-                )
+                ),
+                5000,
             )
         except Exception as error:
             QMessageBox.warning(self, _("Synchronizacja"), _("Synchronizacja nieudana:\n{}").format(error))
@@ -544,12 +544,22 @@ class BudgetApp(QMainWindow):
             self.sync_cursor_active = False
         if hasattr(self, "btn_sync_lan"):
             self.btn_sync_lan.setEnabled(True)
+            self.btn_sync_lan.setText(_("SYNC"))
 
     def _sync_thread_finished(self):
         self.sync_thread = None
         self.sync_worker = None
 
     def schedule_update(self): self.update_timer.start(50)
+
+    def show_auto_information(self, title, message, timeout_ms=5000):
+        msg = QMessageBox(self)
+        msg.setWindowTitle(title)
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        QTimer.singleShot(max(500, int(timeout_ms)), msg.accept)
+        msg.exec()
 
 
     def open_weekly_settings(self):
@@ -1239,6 +1249,25 @@ class BudgetApp(QMainWindow):
         if e.key() == Qt.Key_Delete and self.table.hasFocus(): self.delete_selected_transaction()
         super().keyPressEvent(e)
 
+    def _row_transaction_month(self, row):
+        date_item = self.table.item(row, 1)
+        date_text = date_item.text().strip() if date_item else ""
+        return date_text[:7] if len(date_text) >= 7 else ""
+
+    def _row_is_locked_transaction(self, row):
+        month = self._row_transaction_month(row)
+        return bool(month and self.db.is_month_locked(month))
+
+    def _has_locked_selected_transaction(self, selected_rows):
+        return any(self._row_is_locked_transaction(idx.row()) for idx in selected_rows)
+
+    def _show_locked_readonly_notice(self):
+        QMessageBox.information(
+            self,
+            _("Miesiąc zamknięty"),
+            _("Ten wpis jest w zamkniętym miesiącu i jest tylko do odczytu.")
+        )
+
     def open_context_menu(self, position):
         selected_rows = self.table.selectionModel().selectedRows()
         if not selected_rows:
@@ -1267,8 +1296,9 @@ class BudgetApp(QMainWindow):
         export_action.triggered.connect(self.export_selected_to_pdf)
 
         is_locked = self.db.is_month_locked(self.get_current_month_str())
+        selection_locked = self._has_locked_selected_transaction(selected_rows)
 
-        if not is_locked:
+        if not is_locked and not selection_locked:
             if len(selected_rows) == 1:
                 edit_action = QAction(_("Edytuj"), self)
                 edit_action.triggered.connect(self.open_edit_dialog)
@@ -1279,6 +1309,10 @@ class BudgetApp(QMainWindow):
             del_action.triggered.connect(self.delete_selected_transaction)
             menu.addAction(del_action)
         else:
+            if len(selected_rows) == 1:
+                view_action = QAction(_("Podgląd"), self)
+                view_action.triggered.connect(self.open_edit_dialog)
+                menu.addAction(view_action)
             lock_info = QAction(_("🔒 Miesiąc zablokowany"), self)
             lock_info.setEnabled(False)
             menu.addAction(lock_info)
@@ -2351,9 +2385,11 @@ class BudgetApp(QMainWindow):
 
 
     def delete_selected_transaction(self):
-        if self.db.is_month_locked(self.get_current_month_str()): return
         sel = self.table.selectionModel().selectedRows()
         if not sel: return
+        if self._has_locked_selected_transaction(sel):
+            self._show_locked_readonly_notice()
+            return
         msg = _("Czy na pewno chcesz usunąć {} wpisów?").format(len(sel)) if len(sel) > 1 else _("Czy na pewno chcesz usunąć ten wpis?")
         if QMessageBox.Yes == QMessageBox.question(self, _("Usuń"), msg):
             for idx in sorted(sel, reverse=True):
@@ -2409,6 +2445,10 @@ class BudgetApp(QMainWindow):
         self.current_dialog = AccountTransferDialog(self, self.db)
         if self.current_dialog.exec():
             data = self.current_dialog.get_data()
+            today = QDate.currentDate().toString("yyyy-MM-dd")
+            if self.db.is_month_locked(today[:7]):
+                QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                return
             if self.db.transfer_accounts(data["from_id"], data["to_id"], data["amount"], data.get("details", "")):
                 self.schedule_update()
             else:
@@ -2420,9 +2460,22 @@ class BudgetApp(QMainWindow):
         if self.current_dialog.exec():
             dat = self.current_dialog.get_data()
             if dat['mode'] == 'new':
-                self.db.add_liability(dat['name'], dat['amount'], dat['deadline'], dat.get('attachment'))
-                QMessageBox.information(self, "OK", _("Zapisano zobowiązanie."))
+                debt_id, merged = self.db.add_or_merge_liability(
+                    dat['name'],
+                    dat['amount'],
+                    dat['deadline'],
+                    dat.get('attachment'),
+                    dat.get('merge_existing', True)
+                )
+                if not debt_id:
+                    QMessageBox.warning(self, _("Błąd"), _("Nie udało się zapisać zobowiązania."))
+                    return
+                message = _("Dopisano kwotę do istniejącego długu i ustawiono nowy termin.") if merged else _("Zapisano zobowiązanie.")
+                QMessageBox.information(self, "OK", message)
             else:
+                if self.db.is_month_locked(dat['date'][:7]):
+                    QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                    return
                 dodatkowy_opis = ""
                 status = self.db.get_liabilities_status()
                 dane_dlugu = next((d for d in status if d['id'] == dat['ref_id']), None)
@@ -2452,15 +2505,32 @@ class BudgetApp(QMainWindow):
         if self.current_dialog.exec():
             dat = self.current_dialog.get_data()
             if dat['mode'] == 'new':
-                new_id = self.db.add_debtor(dat['name'], dat['amount'], dat['deadline'], dat.get('attachment'))
+                transaction_date = QDate.currentDate().toString("yyyy-MM-dd")
+                if self.db.is_month_locked(transaction_date[:7]):
+                    QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                    return
+                new_id, merged = self.db.add_or_merge_debtor(
+                    dat['name'],
+                    dat['amount'],
+                    dat['deadline'],
+                    dat.get('attachment'),
+                    dat.get('merge_existing', True)
+                )
+                if not new_id:
+                    QMessageBox.warning(self, _("Błąd"), _("Nie udało się zapisać dłużnika."))
+                    return
                 self.db.add_transaction(
-                    QDate.currentDate().toString("yyyy-MM-dd"),
+                    transaction_date,
                     'expense', _('Pożyczki'), dat['name'], dat['amount'],
                     0, "", dat.get('attachment'), ref_id=new_id,
                     account_id=dat.get('account_id', 1)
                 )
-                QMessageBox.information(self, "OK", _("Zapisano dłużnika i dodano wydatek."))
+                message = _("Dopisano kwotę do istniejącego dłużnika, ustawiono nowy termin i dodano wydatek.") if merged else _("Zapisano dłużnika i dodano wydatek.")
+                QMessageBox.information(self, "OK", message)
             else:
+                if self.db.is_month_locked(dat['date'][:7]):
+                    QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                    return
                 dodatkowy_opis = ""
                 status = self.db.get_debtors_status()
                 dane_dluznika = next((d for d in status if d['id'] == dat['ref_id']), None)
@@ -2586,6 +2656,9 @@ class BudgetApp(QMainWindow):
                         continue
 
                     dt = QDate.currentDate().toString("yyyy-MM-dd")
+                    if self.db.is_month_locked(dt[:7]):
+                        QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                        break
                     self.db.add_transaction(dt, "savings", _("Oszczędności"), source, -amount, account_id=account_id)
                     self.db.add_transaction(dt, "savings", _("Oszczędności"), target, amount, account_id=account_id)
 
@@ -2632,9 +2705,17 @@ class BudgetApp(QMainWindow):
         if not row_data: return
 
         from dialogs import EditDialog
-        dlg = EditDialog(self, row_data, self.db)
+        is_locked = self.db.is_month_locked(row_data[1][:7])
+        dlg = EditDialog(self, row_data, self.db, read_only=is_locked)
+        if is_locked:
+            dlg.exec()
+            return
+
         if dlg.exec():
             d = dlg.get_data()
+            if self.db.is_month_locked(d['date'][:7]):
+                QMessageBox.critical(self, _("Błąd"), _("Miesiąc zamknięty!"))
+                return
             self.db.update_transaction(
                 tid,
                 d['date'],

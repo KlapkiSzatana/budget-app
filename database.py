@@ -910,7 +910,7 @@ class DatabaseManager:
             })
 
         return {
-            "device": "BudgetApp PC",
+            "device": "Kajet PC",
             "accounts": accounts,
             "categories": categories,
             "people": people,
@@ -1797,12 +1797,89 @@ class DatabaseManager:
 
     # --- DŁUGI (MOJE ZOBOWIĄZANIA) ---
     # --- DŁUGI (MOJE ZOBOWIĄZANIA) ---
-    def add_liability(self, name, amount, deadline, attachment=None):
+    def _save_debt_attachment(self, attachment):
         filename = None
         if attachment and isinstance(attachment, bytes):
             filename = f"{uuid.uuid4().hex}.dat"
             with open(os.path.join(self.attachments_dir, filename), "wb") as f:
                 f.write(attachment)
+        return filename
+
+    def _normalize_debt_name(self, name):
+        return " ".join(str(name or "").strip().split()).casefold()
+
+    def _active_debt_for_name(self, table, name):
+        if table not in ("liabilities", "debtors"):
+            return None
+
+        target = self._normalize_debt_name(name)
+        if not target:
+            return None
+
+        repayment_type = "liability_repayment" if table == "liabilities" else "debtor_repayment"
+        for row in self.conn.execute(f"""
+            SELECT id, name, total_amount, deadline, IFNULL(attachment, '')
+            FROM {table}
+            ORDER BY id ASC
+        """).fetchall():
+            debt_id, debt_name, total, deadline, old_attachment = row
+            if self._normalize_debt_name(debt_name) != target:
+                continue
+            paid = self.conn.execute(
+                "SELECT SUM(amount) FROM transactions WHERE type=? AND ref_id=?",
+                (repayment_type, debt_id)
+            ).fetchone()[0] or 0.0
+            if (float(total or 0.0) - paid) > 0.001:
+                return {
+                    "id": debt_id,
+                    "name": debt_name,
+                    "total": float(total or 0.0),
+                    "deadline": deadline,
+                    "attachment": old_attachment,
+                }
+        return None
+
+    def _add_or_merge_debt(self, table, name, amount, deadline, attachment=None, merge_existing=True):
+        if table not in ("liabilities", "debtors"):
+            return False, False
+
+        if merge_existing:
+            existing = self._active_debt_for_name(table, name)
+            if existing:
+                filename = self._save_debt_attachment(attachment)
+                new_total = existing["total"] + float(amount or 0.0)
+                if filename:
+                    self.conn.execute(f"""
+                        UPDATE {table}
+                        SET total_amount=?, deadline=?, attachment=?, updated_at=?
+                        WHERE id=?
+                    """, (new_total, deadline, filename, self.sync_timestamp(), existing["id"]))
+                    old_attachment = existing.get("attachment")
+                    if old_attachment:
+                        try:
+                            os.remove(os.path.join(self.attachments_dir, os.path.basename(old_attachment)))
+                        except Exception:
+                            pass
+                else:
+                    self.conn.execute(f"""
+                        UPDATE {table}
+                        SET total_amount=?, deadline=?, updated_at=?
+                        WHERE id=?
+                    """, (new_total, deadline, self.sync_timestamp(), existing["id"]))
+                self.conn.commit()
+                return existing["id"], True
+
+        add_func = self.add_liability if table == "liabilities" else self.add_debtor
+        return add_func(name, amount, deadline, attachment), False
+
+    def add_or_merge_liability(self, name, amount, deadline, attachment=None, merge_existing=True):
+        return self._add_or_merge_debt("liabilities", name, amount, deadline, attachment, merge_existing)
+
+    def add_or_merge_debtor(self, name, amount, deadline, attachment=None, merge_existing=True):
+        return self._add_or_merge_debt("debtors", name, amount, deadline, attachment, merge_existing)
+
+    def add_liability(self, name, amount, deadline, attachment=None):
+        filename = self._save_debt_attachment(attachment)
 
         try:
             cursor = self.conn.execute(
@@ -1855,11 +1932,7 @@ class DatabaseManager:
     # --- DŁUŻNICY (LUDZIE WISZĄ MI KASĘ) - NOWE ---
     # --- DŁUŻNICY (LUDZIE WISZĄ MI KASĘ) ---
     def add_debtor(self, name, amount, deadline, attachment=None):
-        filename = None
-        if attachment and isinstance(attachment, bytes):
-            filename = f"{uuid.uuid4().hex}.dat"
-            with open(os.path.join(self.attachments_dir, filename), "wb") as f:
-                f.write(attachment)
+        filename = self._save_debt_attachment(attachment)
 
         try:
             cursor = self.conn.execute(

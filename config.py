@@ -6,7 +6,7 @@ import atexit
 import tempfile
 import time
 
-WERSJA = "1.3.8"
+WERSJA = "1.4.1"
 PRODUCENT = "KlapkiSzatana"
 CASH_SAVINGS_NAME = "Oszczędności"
 APP_ID = "budget-app"
@@ -223,7 +223,7 @@ def get_attachments_dir():
     os.makedirs(directory, exist_ok=True)
     return directory
 
-APPNAME = _("Budżet Domowy")
+APPNAME = _("Kajet")
 
 MONTH_NAME = [
     _("Styczeń"), _("Luty"), _("Marzec"), _("Kwiecień"), _("Maj"), _("Czerwiec"),
@@ -238,7 +238,7 @@ DAYS_PL = [
 
 def refresh_language_constants():
     global APPNAME
-    APPNAME = _("Budżet Domowy")
+    APPNAME = _("Kajet")
     MONTH_NAME[:] = [
         _("Styczeń"), _("Luty"), _("Marzec"), _("Kwiecień"), _("Maj"), _("Czerwiec"),
         _("Lipiec"), _("Sierpień"), _("Wrzesień"), _("Październik"), _("Listopad"), _("Grudzień")
