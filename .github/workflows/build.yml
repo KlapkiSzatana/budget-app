@@ -164,6 +164,7 @@ jobs:
           body: |
             ## Zmiany w tej wersji:
             - Zmiana działania aplikacji Android (tylko informacja + Zakupy)
+            - Zmiana sposobu wyświetlania w Android
             - Poprawki w interfejsie PC
             - Zmiana nazwy aplikacji - Polska wersja: "Kajet" (zmiany nazw plików itp w następnych aktualizacjach)
             ---
